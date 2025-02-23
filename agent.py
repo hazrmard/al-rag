@@ -41,7 +41,9 @@ class CoTAgent(LLM):
         final_answer = ""
         self._messages.append(dict(role="user", content=message))
         while not final_answer:
-            resp = self.complete(self._messages, response_format=self.response_format)
+            resp = super().complete(
+                self._messages, response_format=self.response_format
+            )
             llm_resp = self.llm_responses(resp=resp)
             llm_resp_obj = self.response_format.model_validate_json(
                 llm_resp[0]["content"]
