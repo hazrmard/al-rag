@@ -9,6 +9,7 @@
 #       jupytext_version: 1.17.3
 #   kernelspec:
 #     display_name: .venv
+#     display_name: .venv
 #     language: python
 #     name: python3
 # ---
@@ -19,6 +20,7 @@
 import os
 import re
 from pathlib import Path
+
 # import numpy as np
 # from dotenv import load_dotenv
 # from litellm import embedding, completion, completion_cost
@@ -223,6 +225,7 @@ topics_collection = chroma_client.get_or_create_collection(name="quran_topics")
 # %%
 # Prompt --vectorDB--> topic --table lookup--> verses
 # Prompt --vectorDB--> verses
+
 
 # %%
 def topic_metadata_to_database(topics, collection):

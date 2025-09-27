@@ -6,3 +6,4 @@ jupyter
 jupytext
 numpy
 pysqlite3-binary
+pydantic

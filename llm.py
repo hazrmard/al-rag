@@ -5,7 +5,8 @@ import litellm
 from litellm import completion
 import litellm.types.utils
 from litellm.utils import function_to_dict as f2d
-from langchain_core.utils.function_calling import convert_to_openai_function
+
+# from langchain_core.utils.function_calling import convert_to_openai_function
 import litellm.types
 
 load_dotenv(override=True)
@@ -30,7 +31,9 @@ class LLM:
             defn=dict(type="function", function=defn), func=f
         )
 
-    def complete(self, messages: list[dict]) -> litellm.types.utils.ModelResponse:
+    def complete(
+        self, messages: list[dict], **kwargs
+    ) -> litellm.types.utils.ModelResponse:
         """Generates a response message after a list of messages.
 
         Args:
@@ -47,7 +50,8 @@ class LLM:
             model=f"openai/{self.model_name}",
             messages=list(messages),
             temperature=0.0,
-            tools=[f["defn"] for f in self.tools.values()],
+            tools=[f["defn"] for f in self.tools.values()] if self.tools else None,
+            **kwargs,
         )
         return resp
 
@@ -82,7 +86,7 @@ class LLM:
         list[dict]
             A list of dicts with keys "role", "content".
         """
-        return [resp.choices[0].message.dict()]
+        return [resp.choices[0].message.model_dump()]
 
 
 def tool_responses(
