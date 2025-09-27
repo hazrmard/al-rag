@@ -1,0 +1,34 @@
+[project]
+name = "quranai"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "hazrmard", email = "hazrmard@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "chromadb>=1.1.0",
+    "litellm>=1.77.4",
+    "python-dotenv>=1.1.1",
+    "smolagents>=1.22.0",
+    "tqdm>=4.67.1",
+]
+
+[project.scripts]
+quranai = "quranai:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/quranai"]
+
+[dependency-groups]
+dev = [
+    "jupyter>=1.1.1",
+    "jupytext>=1.17.3",
+    "pytest>=8.4.2",
+    "tqdm>=4.67.1",
+]
