@@ -3,13 +3,17 @@
 import requests
 import json
 import re
+from collections import defaultdict
 
-from quranai.utils import SingletonMeta
+from quranai.utils import SingletonMeta, list_data_files, get_data_file_path
 
 url = "https://api.openquran.com"
 intro_url = "/express/chapter/intro/{ch}"
 verses_url = "/express/chapter/{ch}:{start}-{end}"
 chapters = 114
+corpus_json = "quran.json"
+vector_db = "qurana.chroma"
+
 
 payload = {
     "en": False,
@@ -29,6 +33,13 @@ payload = {
     "f": 1,
     "hover": 0,
 }
+
+
+def load_corpus_into_memory() -> list[dict]:
+    """Load the entire Quran corpus into memory."""
+    path = get_data_file_path(corpus_json)
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 def get_ch(n=1, start=1, end=300) -> dict:
@@ -69,8 +80,20 @@ def sanitize_topic(s: str):
 
 
 def get_topics(q: list[dict]) -> tuple[list[str], dict[str, list[str]]]:
-    from collections import defaultdict
+    """Extract topics and a mapping of references from the Quran corpus.
+    The topics is a sorted list of strings.
+    The references are a mapping of topics to their occurrences in the format "ch:verse".
+    For example:
+        "faith": ["1:1", "2:2"],
+        "prayer": ["2:3", "2:4"]
 
+    Args:
+        q (list[dict]): The Quran corpus data.
+
+    Returns:
+        tuple[list[str], dict[str, list[str]]]: A tuple containing a
+        list of unique topics and a mapping of topics to their references.
+    """
     reverse = defaultdict(list, {})
     t = set()
     for ch in q:
@@ -82,11 +105,17 @@ def get_topics(q: list[dict]) -> tuple[list[str], dict[str, list[str]]]:
     return sorted(list(t)), reverse
 
 
-class TopicIndex(metaclass=SingletonMeta):
-    """This is a singleton class to hold the topic index."""
+class Corpus(metaclass=SingletonMeta):
+    """This is a singleton class to hold the Quran corpus in memory."""
 
-    def __init__(self, quran: list[dict]):
-        self._topics, self._reverse = get_topics(quran)
+    def __init__(self):
+        self.quran = load_corpus_into_memory()
+        self.topics, self.references = get_topics(self.quran)
 
-    def get_references(self, topic: str) -> list[str]:
-        return self._reverse.get(topic, [])
+
+def _build():
+    pass
+
+
+if __name__ == "__main__":
+    _build()

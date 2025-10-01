@@ -8,8 +8,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.17.3
 #   kernelspec:
-#     display_name: .venv
-#     display_name: .venv
+#     display_name: quranai
 #     language: python
 #     name: python3
 # ---
@@ -20,63 +19,28 @@
 import os
 import re
 from pathlib import Path
-
+import requests, json
 # import numpy as np
-# from dotenv import load_dotenv
 # from litellm import embedding, completion, completion_cost
 import json
 from tqdm.autonotebook import trange, tqdm
+from dotenv import load_dotenv
 
-MODEL_NAME = "gpt-4o-mini"
+import quranai
+from quranai.utils import schema, list_data_files, get_data_file_path
+MODEL_NAME = "gpt-5-mini"
 
-# load_dotenv("./.env", override=True);
+load_dotenv("./.env", override=True);
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Download
 
 # %%
-url = "https://api.openquran.com"
-intro_url = "/express/chapter/intro/{ch}"
-verses_url = "/express/chapter/{ch}:{start}-{end}"
+from quranai.quran.corpus import get_ch
+from quranai.utils import schema
 
-payload = {
-    "en": False,
-    "zk": False,
-    "sc": False,
-    "v5": True,
-    "cn": False,
-    "sp_en": False,
-    "sp_ur": False,
-    "ur": False,
-    "ts": False,
-    "fr": False,
-    "es": False,
-    "de": False,
-    "it": False,
-    "my": False,
-    "f": 1,
-    "hover": 0,
-}
-
-# %%
-import requests, json
-
-
-# %%
-def get_ch(n=1, start=1, end=300):
-    vdata = []
-    for s in range(start, end, 10):
-        res = requests.post(
-            (url + verses_url).format(ch=n, start=s, end=s + 10), json=payload
-        )
-        data = json.loads(res.content)
-        if data == {"message": "invalid request"}:
-            break
-        vdata.extend(data)
-    res = requests.get((url + intro_url).format(ch=n))
-    intro_data = json.loads(res.content)
-    return dict(**intro_data, verses=vdata)
-
+ch1 = get_ch(1)
+print(schema(ch1))
 
 # %%
 quran = {}
@@ -93,26 +57,24 @@ with open("./quran.json", "w") as f:
 # %%
 with open("./quran.json", "r") as f:
     data = json.load(f)
-quran = {int(k): v for k, v in data.items()}
-
+quran = [v for k, v in data.items()]
 
 # %%
-# Processing functions for text elements
-def sanitize_verse(s: str):
-    """Remove [ ] footnote markers and <> tags from text"""
-    square_brackets_pattern = r"\[[^\]]*\]"  # Matches anything inside square brackets
-    angle_brackets_pattern = r"<[^>]*>"  # Matches anything inside angle brackets
-    # Remove content inside square brackets
-    result = re.sub(square_brackets_pattern, "", s)
-    # Remove content inside angle brackets
-    result = re.sub(angle_brackets_pattern, "", result)
-    # Remove any extra spaces that may have been introduced
-    result = re.sub(r"\s+", " ", result).strip()
-    return result
+type(get_data_file_path(list_data_files()[0]))
 
+# %%
+print(schema(quran))
 
-def sanitize_topic(s: str):
-    return sanitize_verse(",".join(s.split(":")))
+# %%
+from quranai.quran.corpus import get_topics
+
+t, r = get_topics(quran)
+
+# %%
+print(schema(quran[0]["verses"][4]))
+
+# %%
+quran[0]["verses"][4]
 
 
 # %%
@@ -123,23 +85,6 @@ def get_verses(ch: dict) -> dict[int, str]:
         v[d["v"]] = sanitize_verse(d["v5"]["text"])
     return v
 
-
-# %%
-def get_topics(q: dict = quran):
-    from collections import defaultdict
-
-    reverse = defaultdict(list, {})
-    t = set()
-    for ch in q.values():
-        for v in ch["verses"]:
-            for topic in v["topics"]:
-                t_ = sanitize_topic(topic["topic"])
-                t.add(t_)
-                reverse[t_].append("%d:%d" % (v["ch"], v["v"]))
-    return sorted(list(t)), reverse
-
-
-# t, reverset = get_topics(quran)
 
 # %%
 verses = {i: get_verses(d) for i, d in quran.items()}
@@ -226,7 +171,6 @@ topics_collection = chroma_client.get_or_create_collection(name="quran_topics")
 # Prompt --vectorDB--> topic --table lookup--> verses
 # Prompt --vectorDB--> verses
 
-
 # %%
 def topic_metadata_to_database(topics, collection):
     collection.upsert(ids=topics, documents=topics)
@@ -256,18 +200,14 @@ print(themes("forgiveness", c["quran_topics"]))
 print(find("What is forgiveness?", c["quran"]))
 
 # %% [markdown]
-# ### LLM
+# ## LLM
 
 # %%
-from framework import system_prompt as prompt, router, find, get_collection
+from quranai.agent import Agent
+from quranai.quran.agent import QuranAgent
 
 # %%
-res = completion(
-    model=MODEL_NAME, temperature=0, messages=[{"role": "system", "content": p}]
-)
+agent = Agent(tools=[])
 
 # %%
-res["choices"][0]["message"].content
-
-# %%
-print(router("FIND: Moses"))
+qagent = QuranAgent()

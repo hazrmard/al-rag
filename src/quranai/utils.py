@@ -1,4 +1,5 @@
 import importlib.resources
+import pathlib
 from typing import Any
 
 
@@ -14,12 +15,12 @@ def list_data_files():
         return []
 
 
-def get_data_file_path(filename):
+def get_data_file_path(filename) -> pathlib.Path:
     """Get the Traversable path to a data file."""
     return importlib.resources.files("quranai.data") / filename
 
 
-def read_data_file(filename):
+def read_data_file(filename) -> str:
     """Read the content of a data file as text."""
     return importlib.resources.read_text("quranai.data", filename)
 
