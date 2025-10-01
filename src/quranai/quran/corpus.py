@@ -39,7 +39,8 @@ def load_corpus_into_memory() -> list[dict]:
     """Load the entire Quran corpus into memory."""
     path = get_data_file_path(corpus_json)
     with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        corpus = json.load(f)
+        return list(corpus.values())
 
 
 def get_ch(n=1, start=1, end=300) -> dict:

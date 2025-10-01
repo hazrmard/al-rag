@@ -30,5 +30,6 @@ dev = [
     "jupyter>=1.1.1",
     "jupytext>=1.17.3",
     "pytest>=8.4.2",
+    "smolagents[gradio]>=1.22.0",
     "tqdm>=4.67.1",
 ]
