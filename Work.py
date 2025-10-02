@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 
 import quranai
 from quranai.utils import schema, list_data_files, get_data_file_path
-MODEL_NAME = "gpt-5-mini"
+from quranai.quran.corpus import corpus_json
 
 load_dotenv("./.env", override=True);
 
@@ -36,10 +36,10 @@ load_dotenv("./.env", override=True);
 # ## Download
 
 # %%
-from quranai.quran.corpus import get_ch
+from quranai.quran.corpus import download_ch
 from quranai.utils import schema
 
-ch1 = get_ch(1)
+ch1 = download_ch(1)
 print(schema(ch1))
 
 # %%
@@ -48,19 +48,19 @@ for i in range(1, 115):
     quran[i] = get_ch(i)
 
 # %%
-with open("./quran.json", "w") as f:
-    json.dump(quran, f)
+with open(get_data_file_path(corpus_json), "w") as f:
+    json.dump(corpus_json, f)
 
 # %% [markdown]
 # ## Parsing
 
 # %%
-with open("./quran.json", "r") as f:
-    data = json.load(f)
-quran = [v for k, v in data.items()]
+from quranai.quran.corpus import sanitize_topic, sanitize_verse, load_corpus_into_memory
 
 # %%
-type(get_data_file_path(list_data_files()[0]))
+with open(get_data_file_path(corpus_json), "r") as f:
+    data = json.load(f)
+quran = [v for k, v in data.items()]
 
 # %%
 print(schema(quran))
@@ -75,25 +75,6 @@ print(schema(quran[0]["verses"][4]))
 
 # %%
 quran[0]["verses"][4]
-
-
-# %%
-def get_verses(ch: dict) -> dict[int, str]:
-    v = {}
-    for d in ch["verses"]:
-        # v[d['v']] = sanitize_verse(' '.join(w['t'] for w in d['words'] if w['t'] is not None))
-        v[d["v"]] = sanitize_verse(d["v5"]["text"])
-    return v
-
-
-# %%
-verses = {i: get_verses(d) for i, d in quran.items()}
-
-# %%
-quran[1]["verses"][0]
-
-# %%
-verses[1]
 
 
 # %%
@@ -205,9 +186,21 @@ print(find("What is forgiveness?", c["quran"]))
 # %%
 from quranai.agent import Agent
 from quranai.quran.agent import QuranAgent
+import cProfile, pstats, io, os
+
+os.getenv("OPENAI_MODEL_NAME")
 
 # %%
 agent = Agent(tools=[])
 
 # %%
 qagent = QuranAgent()
+
+# %%
+with cProfile.Profile() as pr:
+    qagent.run("What themes are present in 1:1-7?")
+s = io.StringIO()
+sortby = pstats.SortKey.CUMULATIVE
+ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+ps.print_stats()
+print(s.getvalue())

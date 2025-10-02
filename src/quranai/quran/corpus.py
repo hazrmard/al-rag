@@ -12,7 +12,7 @@ intro_url = "/express/chapter/intro/{ch}"
 verses_url = "/express/chapter/{ch}:{start}-{end}"
 chapters = 114
 corpus_json = "quran.json"
-vector_db = "qurana.chroma"
+vector_db = "quranai.chroma"
 
 
 payload = {
@@ -43,7 +43,7 @@ def load_corpus_into_memory() -> list[dict]:
         return list(corpus.values())
 
 
-def get_ch(n=1, start=1, end=300) -> dict:
+def download_ch(n=1, start=1, end=300) -> dict:
     vdata = []
     for s in range(start, end, 10):
         res = requests.post(
@@ -58,8 +58,8 @@ def get_ch(n=1, start=1, end=300) -> dict:
     return dict(**intro_data, verses=vdata)
 
 
-def get_all_chapters(start=1, end=chapters + 1) -> list[dict]:
-    return [get_ch(n, 1, 300) for n in range(start, end)]
+def download_all_chapters(start=1, end=chapters + 1) -> list[dict]:
+    return [download_ch(n, 1, 300) for n in range(start, end)]
 
 
 # Processing functions for text elements
@@ -74,6 +74,14 @@ def sanitize_verse(s: str):
     # Remove any extra spaces that may have been introduced
     result = re.sub(r"\s+", " ", result).strip()
     return result
+
+
+def get_verses(ch: dict) -> dict[int, str]:
+    v = {}
+    for d in ch["verses"]:
+        # v[d['v']] = sanitize_verse(' '.join(w['t'] for w in d['words'] if w['t'] is not None))
+        v[d["v"]] = sanitize_verse(d["v5"]["text"])
+    return v
 
 
 def sanitize_topic(s: str):

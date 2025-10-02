@@ -32,9 +32,11 @@ dict:                      # mapping of topic to list of references in the forma
 ```
 """
 
+import re
+
 from quranai.agent import Agent as BaseAgent
 from quranai.utils import list_data_files, get_data_file_path
-from quranai.quran.corpus import Corpus
+from quranai.quran.corpus import Corpus, sanitize_topic
 import yaml
 
 
@@ -42,29 +44,20 @@ _TEMPLATE = "prompt_quran.yaml"
 corpus = Corpus()
 
 
-def get_verses(ch: int, start: int, end: int) -> list[dict]:
+def get_verses(ch: int, start: int, end: int) -> list[str]:
     """Return a list of verses for a chapter between start and
-    end (inclusive of start, exclusive of end). Does not include
-    any footnotes or topics. Only the arabic text and translation.
+    end.
 
     Args:
         ch: Chapter number (1-indexed).
         start: Starting verse number (1-indexed).
-        end: Ending verse number (1-indexed, exclusive).
+        end: Ending verse number (1-indexed, inclusive).
 
     Returns:
-        A list of verse dictionaries from the corpus slice.
+        A list of verses from the corpus.
     """
     verses = corpus.quran[ch - 1]["verses"][start - 1 : end]
-    return [
-        {
-            "ch": v["ch"],
-            "v": v["v"],
-            "ar": v["ar"],
-            "v5": v["v5"],
-        }
-        for v in verses
-    ]
+    return [f"{v['ch']}:{v['v']}: {v['v5']['text']}" for v in verses]
 
 
 def get_chapter_intro(ch: int) -> str:
@@ -79,7 +72,7 @@ def get_chapter_intro(ch: int) -> str:
     return corpus.quran[ch - 1]["intro_en"]
 
 
-def get_verse_footnotes(ch: int, verse: int) -> list[dict]:
+def get_verse_footnotes(ch: int, verse: int) -> list[str]:
     """Return the list of footnotes for a specific verse.
 
     Args:
@@ -87,12 +80,13 @@ def get_verse_footnotes(ch: int, verse: int) -> list[dict]:
         verse: Verse number (1-indexed).
 
     Returns:
-        A list of footnote dictionaries for the verse.
+        A list of footnote strings for the verse.
     """
-    return corpus.quran[ch - 1]["verses"][verse - 1]["v5"]["notes"]
+    notes = corpus.quran[ch - 1]["verses"][verse - 1]["v5"]["notes"]
+    return [f"{n['ref']}: {n['note']}" for n in notes]
 
 
-def get_specific_footnote(ch: int, verse: int, ref: str) -> dict:
+def get_specific_footnote(ch: int, verse: int, ref: str) -> str:
     """Return a specific footnote by reference for a verse.
 
     Args:
@@ -103,37 +97,41 @@ def get_specific_footnote(ch: int, verse: int, ref: str) -> dict:
     Returns:
         A dict with keys 'ref' and 'note'. If not found, note contains a not-found message.
     """
-    notes = get_verse_footnotes(ch, verse)
-    for n in notes:
-        if n.get("ref") == ref:
-            return n
-    return {"ref": ref, "note": "Footnote not found."}
+    notes = corpus.quran[ch - 1]["verses"][verse - 1]["v5"]["notes"]
+    if ref in notes:
+        return f"{ref}: {notes[ref]}"
+    return f"{ref}: Footnote [{ref}] not found for {ch}:{verse}."
 
 
-def get_topics(ch: int, verse: int) -> list[dict]:
+def get_topics(ch: int, start: int, end: int) -> list[str]:
     """Return the list of topics associated with a specific verse.
 
     Args:
         ch: Chapter number (1-indexed).
-        verse: Verse number (1-indexed).
+        start: Starting verse number (1-indexed).
+        end: Ending verse number (1-indexed, inclusive).
 
     Returns:
         A list of topic dictionaries for the verse.
     """
-    return corpus.quran[ch - 1]["verses"][verse - 1]["topics"]
+    topics = []
+    for verse in corpus.quran[ch - 1]["verses"][start - 1 : end]:
+        topics.extend(verse["topics"])
+    return sorted(list(set([sanitize_topic(t["topic"]) for t in topics])))
 
 
-def get_cross_references(ch: int, verse: int) -> list[dict]:
+def get_cross_references(ch: int, start: int, end: int) -> list[dict]:
     """Return cross-references for a given verse.
 
     Args:
         ch: Chapter number (1-indexed).
-        verse: Verse number (1-indexed).
+        start: Starting verse number (1-indexed).
+        end: Ending verse number (1-indexed, inclusive).
 
     Returns:
         A list of cross-reference entries associated with the verse.
     """
-    return corpus.quran[ch - 1]["verses"][verse - 1]["v5"]["cross_references"]
+    pass
 
 
 def get_verses_for_query(query: str) -> list[dict]:
@@ -157,7 +155,14 @@ def get_verses_for_topic(topic: str) -> list[dict]:
     Returns:
         A list of verse dicts that include the topic.
     """
-    return [v for ch in corpus.quran for v in ch["verses"] if topic in v["topics"]]
+    references = corpus.references.get(sanitize_topic(topic), [])  # list of "ch:verse"
+    tuples = [(int(r.split(":")[0]), int(r.split(":")[1])) for r in references]
+    # return verses in ascending order of chapter and verse
+    tuples = sorted(tuples, key=lambda x: (x[0], x[1]))
+    verses = []
+    for ch, v in tuples:
+        verses.extend(get_verses(ch, v, v))
+    return verses
 
 
 def get_topics_for_query(query: str) -> list[dict]:
@@ -176,6 +181,41 @@ def get_topics_for_query(query: str) -> list[dict]:
     return [{"topic": t} for t in getattr(corpus, "topics", []) if query in t]
 
 
+def extract_verse_references(text: str) -> list[str]:
+    """Extract verse references in the following formats from a given text:
+
+    - "ch:verse" (e.g., "2:255")
+    - "ch:verse-verse" (e.g., "2:255-257")
+    - "ch:verse,verse" (e.g., "2:255,257")
+
+    Args:
+        text: Input text potentially containing verse references.
+
+    Returns:
+        A list of verse references in the format "ch:verse".
+    """
+    pattern = r"(\d+):(\d+(?:-\d+)?(?:,\d+)*)"
+    matches = re.findall(pattern, text)
+    result = []
+    for ch_str, verses_str in matches:
+        ch = int(ch_str)
+        if "-" in verses_str:
+            start, end = verses_str.split("-")
+            start = int(start)
+            end = int(end)
+            for v in range(start, end + 1):
+                result.append(f"{ch}:{v}")
+        elif "," in verses_str:
+            verse_nums = verses_str.split(",")
+            for v_str in verse_nums:
+                v = int(v_str)
+                result.append(f"{ch}:{v}")
+        else:
+            v = int(verses_str)
+            result.append(f"{ch}:{v}")
+    return result
+
+
 class QuranAgent(BaseAgent):
     def __init__(self, **kwargs) -> None:
         """Initialize the QuranAgent with tool bindings and prompt templates.
@@ -192,18 +232,19 @@ class QuranAgent(BaseAgent):
                     self.__class__.tool,
                     [
                         get_verses,
-                        get_chapter_intro,
-                        get_verse_footnotes,
-                        get_specific_footnote,
-                        get_topics,
-                        get_cross_references,
-                        get_verses_for_query,
-                        get_verses_for_topic,
+                        # get_chapter_intro,
+                        # get_verse_footnotes,
+                        # get_specific_footnote,
+                        # get_topics,
+                        # ---
+                        # get_cross_references,
+                        # get_verses_for_query,
+                        # get_verses_for_topic,
                         # get_topics_for_query,
                     ],
                 ),
             ),
-            prompt_templates=prompt_templates,
+            # prompt_templates=prompt_templates,
             **kwargs,
         )
 
