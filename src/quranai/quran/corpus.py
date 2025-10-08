@@ -76,12 +76,22 @@ def sanitize_verse(s: str):
     return result
 
 
-def get_verses(ch: dict) -> dict[int, str]:
+def get_verses_in_chapter(ch: dict, sanitize: bool = False) -> dict[int, str]:
     v = {}
     for d in ch["verses"]:
         # v[d['v']] = sanitize_verse(' '.join(w['t'] for w in d['words'] if w['t'] is not None))
-        v[d["v"]] = sanitize_verse(d["v5"]["text"])
+        v[d["v"]] = sanitize_verse(d["v5"]["text"]) if sanitize else d["v5"]["text"]
     return v
+
+
+def get_referenced_verses_in_corpus() -> dict[str, str]:
+    """Return a mapping of "ch:verse" to verse text for the entire corpus."""
+    verses = {}
+    for i, ch in enumerate(Corpus().quran):
+        verses.update(
+            {f"{i+1}:{v}": text for v, text in get_verses_in_chapter(ch).items()}
+        )
+    return verses
 
 
 def sanitize_topic(s: str):

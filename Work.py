@@ -55,12 +55,16 @@ with open(get_data_file_path(corpus_json), "w") as f:
 # ## Parsing
 
 # %%
-from quranai.quran.corpus import sanitize_topic, sanitize_verse, load_corpus_into_memory
+from quranai.quran.corpus import (
+    sanitize_topic,
+    sanitize_verse,
+    load_corpus_into_memory,
+    get_referenced_verses_in_corpus,
+)
+from litellm import token_counter
 
 # %%
-with open(get_data_file_path(corpus_json), "r") as f:
-    data = json.load(f)
-quran = [v for k, v in data.items()]
+quran = load_corpus_into_memory()
 
 # %%
 print(schema(quran))
@@ -76,23 +80,33 @@ print(schema(quran[0]["verses"][4]))
 # %%
 quran[0]["verses"][4]
 
+# %%
+verses = get_referenced_verses_in_corpus()
 
 # %%
-def get_metadata(ch: dict) -> dict[int, dict[str, str]]:
-    m = {}
-    for d in ch["verses"]:
-        m_ = dict(
-            ch=d["ch"],
-            v=d["v"],
-            topics="\n".join(sanitize_topic(t["topic"]) for t in d["topics"]),
-            notes="\n".join(n["note"] for n in d["v5"]["notes"]),
-        )
-        m[d["v"]] = m_
-    return m
-
+messages = [
+    dict(
+        role="system",
+        content=(
+            "You are an assistant expert in retrieving verses in context from "
+            "the Quran based on user query. You find excerpts that convey an idea. The "
+            "excerpts should be relevant to the query and provide a comprehensive understanding "
+            "of the topic at hand. Here is the entire Quran in `chapter:verse translation` format. "
+            " IMPORTANT: Only return references in chapter:verse or chapter:verse-verse format. "
+            " For example: `2:255,1:1-5`:\n\n"
+            "<Quran>\n"
+            + "\n".join(f"{ref} {text}" for ref, text in tuple(verses.items())[:3150])
+            + "\n\n</Quran>\n\n"
+        ),
+    ),
+    dict(
+        role="user",
+        content=("Mercy and forgiveness"),
+    ),
+]
 
 # %%
-get_metadata(quran[1])
+token_counter(messages=messages)
 
 # %% [markdown]
 # ### DB
@@ -185,10 +199,65 @@ print(find("What is forgiveness?", c["quran"]))
 
 # %%
 from quranai.agent import Agent
-from quranai.quran.agent import QuranAgent
+from quranai.quran.agent import QuranAgent, _TEMPLATE
+from quranai.llm import LLM, tool_annotator
 import cProfile, pstats, io, os
 
-os.getenv("OPENAI_MODEL_NAME")
+print(os.getenv("OPENAI_MODEL_NAME"), _TEMPLATE)
+
+# %%
+from typing import Literal
+
+
+def calculator(
+    x: float, y: float, op: Literal["add", "subtract", "multiply", "divide"]
+) -> float | str:
+    """Performs basic arithmetic operations.
+
+    Args:
+        x (float): The first operand.
+        y (float): The second operand.
+        op (str): The operation to perform.
+
+    Returns:
+        float: The result of the arithmetic operation.
+    """
+    x, y = float(x), float(y)
+    if op == "add":
+        return x + y
+    elif op == "subtract":
+        return x - y
+    elif op == "multiply":
+        return x * y
+    elif op == "divide":
+        return x / y
+    else:
+        return f"Unknown operation: {op}"
+
+
+# %%
+# llm = LLM(model_name="gpt-4.1-nano")
+resp = llm.complete(messages, max_tokens=100)
+
+# %%
+print(llm.llm_responses(resp)[0]["content"])
+
+# %%
+from quranai.quran.agent import get_verses
+
+get_verses(4, 62, 63)
+
+# %%
+resp.usage
+
+# %%
+llm = LLM(tools=(calculator,))
+llm.run_once("What is 10.765 times 100.5?")
+
+# %%
+from pprint import pprint
+
+pprint(tool_annotator(calculator)["function"])
 
 # %%
 agent = Agent(tools=[])
@@ -198,9 +267,15 @@ qagent = QuranAgent()
 
 # %%
 with cProfile.Profile() as pr:
-    qagent.run("What themes are present in 1:1-7?")
+    res = qagent.run("What does 1:1 say?", max_steps=3, return_full_result=True)
 s = io.StringIO()
 sortby = pstats.SortKey.CUMULATIVE
 ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
 ps.print_stats()
 print(s.getvalue())
+
+# %%
+len(res.steps)
+
+# %%
+res.steps

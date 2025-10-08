@@ -40,7 +40,8 @@ from quranai.quran.corpus import Corpus, sanitize_topic
 import yaml
 
 
-_TEMPLATE = "prompt_quran.yaml"
+# _TEMPLATE = "prompt_quran.yaml"
+_TEMPLATE = "prompt_minimal.yaml"
 corpus = Corpus()
 
 
