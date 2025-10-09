@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Callable, Optional
+from typing import Callable, Optional, Iterable, Any
 import json
 from dotenv import load_dotenv
 import litellm
@@ -23,22 +23,35 @@ class LLM:
 
     """
 
-    def __init__(
-        self, *, tools: tuple[Callable, ...] = (), model_name: str = ""
-    ) -> None:
+    def __init__(self, *, tools: Iterable[Callable] = (), model_name: str = "") -> None:
         self.tools = {}
-        for f in tools:
-            self._add_tool(f)
+        self.llm_kwargs: dict[str, Any] = {}
+        self.tools.update(self.prepare_tools(tools))
         self._setup(model_name=model_name)
 
-    def _add_tool(self, f: Callable):
-        defn = tool_annotator(f)
-        self.tools[defn["function"]["name"]] = dict(defn=defn, func=f)
+    @classmethod
+    def prepare_tools(
+        cls, f: Iterable[Callable], *, tool_annotator: Callable = tool_annotator
+    ) -> dict:
+        tools = {}
+        for fn in f:
+            defn = tool_annotator(fn)
+            tools[defn["function"]["name"]] = dict(defn=defn, func=fn)
+        return tools
 
-    def _setup(self, model_name: str = ""):
+    def add_tools(self, *f: Callable[..., Any]):
+        self.tools.update(self.prepare_tools(f))
+
+    def _setup(self, model_name: str = "", **kwargs) -> None:
         """Used for dependency injection during tests."""
-        self.model_name = model_name or f"openai/{os.getenv('OPENAI_MODEL_NAME')}"
-        self.api_key = os.getenv("OPENAI_API_KEY")
+        self.model_name: str = model_name or f"openai/{os.getenv('OPENAI_MODEL_NAME')}"
+        self.api_key: str = os.getenv("OPENAI_API_KEY", "")
+        self.llm_kwargs = dict(
+            model=self.model_name,
+            api_key=self.api_key,
+            stream=False,
+        )
+        self.llm_kwargs.update(kwargs)  # override with any kwargs provided
         self.completion = completion
 
     def complete(
@@ -56,14 +69,13 @@ class LLM:
         Returns:
             ModelResponse: A response object like the one returned by calling OpenAI models.
         """
-        resp = self.completion(
-            model=self.model_name,
-            api_key=self.api_key,
+        llm_kwargs: dict[str, Any] = dict(
             messages=list(messages),
             tools=[f["defn"] for f in self.tools.values()] if self.tools else None,
-            stream=False,
-            **kwargs,
         )
+        llm_kwargs.update(self.llm_kwargs)  # override with any kwargs provided
+        llm_kwargs.update(kwargs)  # override with any kwargs provided
+        resp = self.completion(**llm_kwargs)  # pyright: ignore[reportArgumentType]
         assert isinstance(resp, litellm.types.utils.ModelResponse)
         return resp
 
@@ -80,18 +92,23 @@ class LLM:
             list[dict]: The LLM's responses in the standard format.
         """
         if system_prompt:
-            messages.insert(0, {"role": "user", "content": system_prompt})
+            if messages[0]["role"] != "system":
+                messages = [{"role": "system", "content": system_prompt}] + messages
+            else:
+                messages = [{"role": "system", "content": system_prompt}] + messages[1:]
         response = self.complete(messages)
         return self.llm_responses(response) + self.tool_responses(response)
 
     def run_once(self, task: str, system_prompt: Optional[str] = None) -> str:
         messages = [{"role": "user", "content": task}]
-        if system_prompt:
-            messages.insert(0, {"role": "user", "content": system_prompt})
-        return self.run(messages)[-1]["content"]
+        return self.run(messages, system_prompt=system_prompt)[-1]["content"]
 
     def tool_responses(
-        self, resp: litellm.types.utils.ModelResponse, **kwargs
+        self,
+        resp: litellm.types.utils.ModelResponse,
+        *,
+        tools: Optional[Iterable[Callable[..., Any]]] = None,
+        **kwargs,
     ) -> list[dict]:
         """Execute tools called by the LLM, and return the result as message objects.
         Any kwargs passed are used to override args provided to function.
@@ -106,7 +123,11 @@ class LLM:
         list[dict]
             A list of dicts with keys "role", "content", "tool_call_id", "name"
         """
-        return tool_responses(resp, llm=self, **kwargs)
+        if tools is not None:
+            tool_defs = self.prepare_tools(tools)
+        else:
+            tool_defs = self.tools
+        return tool_responses(resp, tools=tool_defs, **kwargs)
 
     @classmethod
     def llm_responses(cls, resp: litellm.types.utils.ModelResponse) -> list[dict]:
@@ -127,7 +148,7 @@ class LLM:
 
 def tool_responses(
     response: litellm.types.utils.ModelResponse,
-    llm: LLM,
+    tool_defs: dict[str, dict],
     **kwargs,
 ) -> list[dict]:
     """Execute tools called by an LLM response and return the results as dicts.
@@ -136,21 +157,25 @@ def tool_responses(
     ----------
     response : litellm.types.utils.ModelResponse
         The result of the LLM call.
-    llm : LLM
-        The LLM instance containing references to tools.
+    tool_defs : dict[str, dict]
+        A mapping of tool names to their definitions and functions.
+        For example: dict(tool_name={"defn": tool_def, "func": tool_function}, ...)
+    **kwargs : dict
+        Additional keyword arguments to pass to tool functions.
 
     Returns
     -------
     list[dict]
         Results of tool calls
     """
+    # TODO: concurrent / async calls
     resp = response.choices[0]
     msgs = []
     if resp.message.tool_calls:
         for call in resp.message.tool_calls:
             tid = call.id
             name = call.function.name
-            func = llm.tools[name]["func"]
+            func = tool_defs[name]["func"]
             args = json.loads(call.function.arguments)
             print("Calling tool %s with args: %s" % (name, args), file=sys.stderr)
             try:

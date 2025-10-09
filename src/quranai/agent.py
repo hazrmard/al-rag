@@ -1,14 +1,18 @@
 import os
+from typing import Iterable, Callable, Optional
 from litellm import supports_reasoning  # pyright: ignore[reportPrivateImportUsage]
 from litellm import LiteLLM
 from smolagents import ToolCallingAgent, LiteLLMModel, tool
+
+from quranai.llm import LLM
+from quranai.utils import tool_annotator
 
 
 class Agent(ToolCallingAgent):
     """The base agent used by this application. All other agents inherit from this."""
 
     # The function decorator to register tools
-    tool = tool
+    tool = lambda fn: dict(type="function", function=tool(fn))
 
     def __init__(self, **kwargs):
         _model_name = os.getenv("OPENAI_MODEL_NAME")
@@ -27,22 +31,53 @@ class CustomBaseAgent:
     """A custom base agent to be used by this application. All other agents inherit from this."""
 
     # The function decorator to register tools
-    tool = tool
+    tool = tool_annotator
 
-    def __init__(self, **kwargs):
+    def __init__(
+        self,
+        llm: LLM,
+        tools: Iterable[Callable] = (),
+        instructions: Optional[str] = None,
+        **kwargs,
+    ):
         _model_name = os.getenv("OPENAI_MODEL_NAME")
         assert _model_name, "Please set the OPENAI_MODEL_NAME environment variable."
-        # See: https://docs.litellm.ai/docs/reasoning_content
-        _llm_kwargs = (
-            {"reasoning_effort": "low"} if supports_reasoning(_model_name) else {}
-        )
-        self._setup_llm()
+        self.model = self._setup_llm(llm=llm, tools=tools, **kwargs)
+        self.instructions = instructions or "You are a helpful assistant."
+        self.reset()
 
-    def _setup_llm(self):
-        _LLM = LiteLLM(
-            model_id=_model_name, api_key=os.getenv("OPENAI_API_KEY"), **_llm_kwargs
-        )
-        self.model = _LLM
+    def _setup_llm(self, llm: LLM, tools: Iterable[Callable], **kwargs):
+        # See: https://docs.litellm.ai/docs/reasoning_content
+        # _llm_kwargs = (
+        #     {"reasoning_effort": "low"} if supports_reasoning(_model_name) else {}
+        # )
+        llm.add_tools(*tools)
+        return llm
+
+    def reset(self):
+        self.messages = []
 
     def run(self, task: str):
-        pass
+        """Run the agent on a given task.
+        The agent loops until there are no more tool calls to make.
+        The state is maintained in self.messages.
+
+        Args:
+            task (str): The task to run.
+
+        Returns:
+            str: The result of the task.
+        """
+        # TODO: Check max turns
+        # TODO: Dynamic tools (for e.g. remove tools at final turn)
+        while True:
+            outbound_messages = (
+                [{"role": "system", "content": self.instructions}]
+                + self.messages
+                + [{"role": "user", "content": task}]
+            )
+            new_messages = self.model.run(messages=outbound_messages)
+            self.messages.extend(new_messages)
+            if all("tool_call_id" not in m for m in new_messages):
+                break
+        return self.messages[-1]["content"]

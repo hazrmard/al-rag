@@ -133,6 +133,13 @@ class Corpus(metaclass=SingletonMeta):
 
 
 def _build():
+    """This function builds an index of the corpus.
+
+    Steps:
+    1. Generate chunks from the corpus.
+    2. Generate metadata for each chunk (topics, cross-references etc.)
+    3. Generate embeddings for each chunk.
+    4. Store the chunks and their embeddings in a vector database."""
     pass
 
 
