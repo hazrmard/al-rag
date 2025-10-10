@@ -1,32 +1,35 @@
+import concurrent.futures
+import json
 import os
 import sys
-from typing import Callable, Optional, Iterable, Any
-import json
-from dotenv import load_dotenv
+from typing import Any, Callable, Dict, Iterable, List, Optional
+
 import litellm
-from litellm import completion
-import litellm.types.utils
-from litellm.utils import function_to_dict as f2d
 import litellm.types
+import litellm.types.utils
+from dotenv import load_dotenv
+from litellm import completion
+from litellm.utils import function_to_dict as f2d
+
 from quranai.utils import tool_annotator
 
 
 class LLM:
     """The base LLM class. Can use any number of public libraries to call LLM APIs.
+    This is stateless, except for llm configuration.
 
     Example usage:
 
-        llm = LLM(tools=(my_tool_function,))
+        llm = LLM()
+        tool_defs = LLM.prepare_tools([my_tool_function])
         messages = [{"role": "user", "content": "What is the capital of France?"}]
-        response = llm.run(messages)
+        response = llm.run(messages, tool_defs=tool_defs)
         print(response[-1])
 
     """
 
-    def __init__(self, *, tools: Iterable[Callable] = (), model_name: str = "") -> None:
-        self.tools = {}
+    def __init__(self, *, model_name: str = "") -> None:
         self.llm_kwargs: dict[str, Any] = {}
-        self.tools.update(self.prepare_tools(tools))
         self._setup(model_name=model_name)
 
     @classmethod
@@ -38,9 +41,6 @@ class LLM:
             defn = tool_annotator(fn)
             tools[defn["function"]["name"]] = dict(defn=defn, func=fn)
         return tools
-
-    def add_tools(self, *f: Callable[..., Any]):
-        self.tools.update(self.prepare_tools(f))
 
     def _setup(self, model_name: str = "", **kwargs) -> None:
         """Used for dependency injection during tests."""
@@ -55,7 +55,7 @@ class LLM:
         self.completion = completion
 
     def complete(
-        self, messages: list[dict], **kwargs
+        self, messages: list[dict], tool_defs: Optional[dict] = None, **kwargs
     ) -> litellm.types.utils.ModelResponse:
         """Generates a response message after a list of messages.
 
@@ -71,7 +71,7 @@ class LLM:
         """
         llm_kwargs: dict[str, Any] = dict(
             messages=list(messages),
-            tools=[f["defn"] for f in self.tools.values()] if self.tools else None,
+            tools=([f["defn"] for f in tool_defs.values()] if tool_defs else None),
         )
         llm_kwargs.update(self.llm_kwargs)  # override with any kwargs provided
         llm_kwargs.update(kwargs)  # override with any kwargs provided
@@ -80,7 +80,10 @@ class LLM:
         return resp
 
     def run(
-        self, messages: list[dict], system_prompt: Optional[str] = None
+        self,
+        messages: list[dict],
+        system_prompt: Optional[str] = None,
+        tool_defs: Optional[dict] = None,
     ) -> list[dict]:
         """Runs the LLM on the given messages, executing tool calls if any.
 
@@ -96,8 +99,10 @@ class LLM:
                 messages = [{"role": "system", "content": system_prompt}] + messages
             else:
                 messages = [{"role": "system", "content": system_prompt}] + messages[1:]
-        response = self.complete(messages)
-        return self.llm_responses(response) + self.tool_responses(response)
+        response = self.complete(messages, tool_defs=tool_defs)
+        return self.llm_responses(response) + self.tool_responses(
+            response, tool_defs=tool_defs
+        )
 
     def run_once(self, task: str, system_prompt: Optional[str] = None) -> str:
         messages = [{"role": "user", "content": task}]
@@ -107,7 +112,7 @@ class LLM:
         self,
         resp: litellm.types.utils.ModelResponse,
         *,
-        tools: Optional[Iterable[Callable[..., Any]]] = None,
+        tool_defs: Optional[dict] = None,
         **kwargs,
     ) -> list[dict]:
         """Execute tools called by the LLM, and return the result as message objects.
@@ -123,11 +128,9 @@ class LLM:
         list[dict]
             A list of dicts with keys "role", "content", "tool_call_id", "name"
         """
-        if tools is not None:
-            tool_defs = self.prepare_tools(tools)
-        else:
-            tool_defs = self.tools
-        return tool_responses(resp, tools=tool_defs, **kwargs)
+        if tool_defs is None:
+            return []
+        return tool_responses(resp, tool_defs=tool_defs, **kwargs)
 
     @classmethod
     def llm_responses(cls, resp: litellm.types.utils.ModelResponse) -> list[dict]:
@@ -148,40 +151,47 @@ class LLM:
 
 def tool_responses(
     response: litellm.types.utils.ModelResponse,
-    tool_defs: dict[str, dict],
+    tool_defs: Dict[str, Dict],
     **kwargs,
-) -> list[dict]:
+) -> List[Dict]:
     """Execute tools called by an LLM response and return the results as dicts.
 
     Parameters
     ----------
     response : litellm.types.utils.ModelResponse
         The result of the LLM call.
-    tool_defs : dict[str, dict]
+    tool_defs : Dict[str, Dict]
         A mapping of tool names to their definitions and functions.
         For example: dict(tool_name={"defn": tool_def, "func": tool_function}, ...)
-    **kwargs : dict
+    **kwargs : Dict
         Additional keyword arguments to pass to tool functions.
 
     Returns
     -------
-    list[dict]
+    List[Dict]
         Results of tool calls
     """
-    # TODO: concurrent / async calls
     resp = response.choices[0]
-    msgs = []
-    if resp.message.tool_calls:
+    if not resp.message.tool_calls:
+        return []
+
+    # Use ThreadPoolExecutor for concurrent execution of I/O-bound tool calls
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = []
         for call in resp.message.tool_calls:
             tid = call.id
             name = call.function.name
             func = tool_defs[name]["func"]
             args = json.loads(call.function.arguments)
+            args.update(kwargs)  # override app provided args on top of llm args
             print("Calling tool %s with args: %s" % (name, args), file=sys.stderr)
+            future = executor.submit(func, **args)
+            futures.append((future, tid, name))
+
+        msgs = []
+        for future, tid, name in futures:
             try:
-                # try running where function accepts local_vars (code_sandbox)
-                args.update(kwargs)  # override app provided args on top of llm args
-                result = func(**args)
+                result = str(future.result())
             except Exception as exc:
                 result = f"Error: {exc}"
                 print("Tool %s raised an exception: %s" % (name, exc), file=sys.stderr)

@@ -198,9 +198,10 @@ print(find("What is forgiveness?", c["quran"]))
 # ## LLM
 
 # %%
-from quranai.agent import Agent
+from quranai.agent import Agent, CustomBaseAgent
 from quranai.quran.agent import QuranAgent, _TEMPLATE
 from quranai.llm import LLM, tool_annotator
+from litellm.utils import function_to_dict as f2d
 import cProfile, pstats, io, os
 
 print(os.getenv("OPENAI_MODEL_NAME"), _TEMPLATE)
@@ -236,11 +237,14 @@ def calculator(
 
 
 # %%
-# llm = LLM(model_name="gpt-4.1-nano")
-resp = llm.complete(messages, max_tokens=100)
+llm = LLM()
+agent = CustomBaseAgent(model=llm, tools=[calculator])
+agent.run("What is the result of this calculation: 99.3 * 57.1 + 20 / 4 - 3?")
+# agent.run("What tools do you have? List them.")
 
 # %%
-print(llm.llm_responses(resp)[0]["content"])
+# llm = LLM(model_name="gpt-4.1-nano")
+resp = llm.complete(messages, max_tokens=100)
 
 # %%
 from quranai.quran.agent import get_verses

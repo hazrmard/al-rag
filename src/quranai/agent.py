@@ -1,8 +1,9 @@
 import os
-from typing import Iterable, Callable, Optional
+from typing import Any, Callable, Iterable, Optional
+
 from litellm import supports_reasoning  # pyright: ignore[reportPrivateImportUsage]
 from litellm import LiteLLM
-from smolagents import ToolCallingAgent, LiteLLMModel, tool
+from smolagents import LiteLLMModel, ToolCallingAgent, tool
 
 from quranai.llm import LLM
 from quranai.utils import tool_annotator
@@ -35,24 +36,29 @@ class CustomBaseAgent:
 
     def __init__(
         self,
-        llm: LLM,
+        model: LLM,
         tools: Iterable[Callable] = (),
         instructions: Optional[str] = None,
+        max_turns: int = 5,
         **kwargs,
     ):
-        _model_name = os.getenv("OPENAI_MODEL_NAME")
-        assert _model_name, "Please set the OPENAI_MODEL_NAME environment variable."
-        self.model = self._setup_llm(llm=llm, tools=tools, **kwargs)
         self.instructions = instructions or "You are a helpful assistant."
+        self.max_turns = max_turns
+        self.messages: list[dict] = []
+        self.tool_defs: dict[str, dict[str, Callable]] = {}
+        self.model = model
+        self._setup(model=model, tools=tools, **kwargs)
         self.reset()
 
-    def _setup_llm(self, llm: LLM, tools: Iterable[Callable], **kwargs):
+    def _setup(self, model: LLM, tools: Iterable[Callable], **kwargs):
         # See: https://docs.litellm.ai/docs/reasoning_content
         # _llm_kwargs = (
         #     {"reasoning_effort": "low"} if supports_reasoning(_model_name) else {}
         # )
-        llm.add_tools(*tools)
-        return llm
+        self.add_tools(*tools)
+
+    def add_tools(self, *f: Callable[..., Any]):
+        self.tool_defs.update(self.model.prepare_tools(f))
 
     def reset(self):
         self.messages = []
@@ -68,15 +74,19 @@ class CustomBaseAgent:
         Returns:
             str: The result of the task.
         """
-        # TODO: Check max turns
-        # TODO: Dynamic tools (for e.g. remove tools at final turn)
-        while True:
+        turn = 0
+        while turn < self.max_turns:
+            turn += 1
+            is_final_turn = turn == self.max_turns
             outbound_messages = (
                 [{"role": "system", "content": self.instructions}]
                 + self.messages
                 + [{"role": "user", "content": task}]
             )
-            new_messages = self.model.run(messages=outbound_messages)
+            new_messages = self.model.run(
+                messages=outbound_messages,
+                tool_defs=None if is_final_turn else self.tool_defs,
+            )
             self.messages.extend(new_messages)
             if all("tool_call_id" not in m for m in new_messages):
                 break

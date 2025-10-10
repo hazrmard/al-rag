@@ -34,7 +34,8 @@ dict:                      # mapping of topic to list of references in the forma
 
 import re
 
-from quranai.agent import Agent as BaseAgent
+from quranai.agent import Agent as BaseAgent, CustomBaseAgent
+from quranai.llm import LLM
 from quranai.utils import list_data_files, get_data_file_path
 from quranai.quran.corpus import Corpus, sanitize_topic
 import yaml
@@ -246,6 +247,40 @@ class QuranAgent(BaseAgent):
                 ),
             ),
             # prompt_templates=prompt_templates,
+            **kwargs,
+        )
+
+
+class CustomQuranAgent(CustomBaseAgent):
+    def __init__(self, **kwargs) -> None:
+        """Initialize the QuranAgent with tool bindings and prompt templates.
+
+        Args:
+            **kwargs: Passed through to the BaseAgent initializer.
+        """
+        llm = LLM(model_name="gpt-4.1-mini")
+        super().__init__(
+            model=llm,
+            tools=list(
+                [
+                    get_verses,
+                    get_chapter_intro,
+                    get_verse_footnotes,
+                    get_specific_footnote,
+                    get_topics,
+                    # ---
+                    # get_cross_references,
+                    # get_verses_for_query,
+                    # get_verses_for_topic,
+                    # get_topics_for_query,
+                ],
+            ),
+            instructions=(
+                "You are a helpful assistant that answers questions "
+                "about the Quran. Use the provided tools to look up "
+                "verses, chapter introductions, footnotes, and topics "
+                "as needed."
+            ),
             **kwargs,
         )
 
