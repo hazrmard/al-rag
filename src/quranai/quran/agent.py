@@ -75,7 +75,8 @@ def get_chapter_intro(ch: int) -> str:
 
 
 def get_verse_footnotes(ch: int, verse: int) -> list[str]:
-    """Return the list of footnotes for a specific verse.
+    """Return the list of footnotes for a specific verse, referenced as `[ref]` in the verse text.
+    For example, `[1]`, `[a]`, etc.
 
     Args:
         ch: Chapter number (1-indexed).
@@ -85,11 +86,12 @@ def get_verse_footnotes(ch: int, verse: int) -> list[str]:
         A list of footnote strings for the verse.
     """
     notes = corpus.quran[ch - 1]["verses"][verse - 1]["v5"]["notes"]
-    return [f"{n['ref']}: {n['note']}" for n in notes]
+    return [f"[{n['ref']}]: {n['note']}" for n in notes]
 
 
 def get_specific_footnote(ch: int, verse: int, ref: str) -> str:
-    """Return a specific footnote by reference for a verse.
+    """Return a specific footnote by reference for a verse, , referenced as `[ref]` in the verse text.
+    For example, `[1]`, `[a]`, etc.
 
     Args:
         ch: Chapter number (1-indexed).
@@ -100,6 +102,8 @@ def get_specific_footnote(ch: int, verse: int, ref: str) -> str:
         A dict with keys 'ref' and 'note'. If not found, note contains a not-found message.
     """
     notes = corpus.quran[ch - 1]["verses"][verse - 1]["v5"]["notes"]
+    # strip any surrounding brackets from ref
+    ref = ref.strip("[]")
     if ref in notes:
         return f"{ref}: {notes[ref]}"
     return f"{ref}: Footnote [{ref}] not found for {ch}:{verse}."
@@ -279,7 +283,15 @@ class CustomQuranAgent(CustomBaseAgent):
                 "You are a helpful assistant that answers questions "
                 "about the Quran. Use the provided tools to look up "
                 "verses, chapter introductions, footnotes, and topics "
-                "as needed."
+                "as needed. Your priority is to give a nuanced view "
+                "of the text and its interpretations. This means understanding "
+                "context in light of footnotes and cross-references. "
+                "Your primary goal is as an Apologist for the Quran, "
+                "helping users understand and appreciate its teachings. "
+                "You may take multiple turns to retrieve content, ask clarifying "
+                "quesstions, and think through your responses. The final "
+                "response should cite every claim. You do not need to reproduce "
+                "the full text of the verses, only the references (e.g. 2:255)."
             ),
             **kwargs,
         )

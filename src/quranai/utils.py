@@ -1,6 +1,6 @@
 import importlib.resources
 import pathlib
-from typing import Any
+from typing import Any, Optional
 import inspect
 from typing import Callable, Union, Literal, get_origin, get_args
 
@@ -194,6 +194,26 @@ def tool_annotator(tool: Callable) -> dict:
             },
         },
     }
+
+
+def extract_tool_results(
+    messages: list[dict], filter_by_tool: Optional[str] = None
+) -> list[dict]:
+    """Extract tool results from a list of messages.
+
+    Args:
+        messages (list[dict]): List of message dicts.
+        filter_by_tool (Optional[str]): If provided, only include results from this tool.
+
+    Returns:
+        list[dict]: List of tool result dicts with keys "role", "content", "tool_call_id", "name".
+    """
+    results = []
+    for msg in messages:
+        if "tool_call_id" in msg and msg.get("role") == "tool":
+            if filter_by_tool is None or msg.get("name") == filter_by_tool:
+                results.append(msg)
+    return results
 
 
 class SingletonMeta(type):

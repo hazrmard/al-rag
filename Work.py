@@ -45,7 +45,7 @@ print(schema(ch1))
 # %%
 quran = {}
 for i in range(1, 115):
-    quran[i] = get_ch(i)
+    quran[i] = download_ch(i)
 
 # %%
 with open(get_data_file_path(corpus_json), "w") as f:
@@ -199,12 +199,12 @@ print(find("What is forgiveness?", c["quran"]))
 
 # %%
 from quranai.agent import Agent, CustomBaseAgent
-from quranai.quran.agent import QuranAgent, _TEMPLATE
+from quranai.quran.agent import QuranAgent, CustomQuranAgent
 from quranai.llm import LLM, tool_annotator
-from litellm.utils import function_to_dict as f2d
+from quranai.utils import extract_tool_results, tool_annotator
 import cProfile, pstats, io, os
 
-print(os.getenv("OPENAI_MODEL_NAME"), _TEMPLATE)
+print(os.getenv("OPENAI_MODEL_NAME"))
 
 # %%
 from typing import Literal
@@ -237,14 +237,28 @@ def calculator(
 
 
 # %%
-llm = LLM()
+llm = LLM(model_name="gpt-4.1-mini")
+qagent = CustomQuranAgent()
+
+agent = CustomBaseAgent(
+    model=llm,
+    tools=[calculator, qagent.as_tool(description="A research agent for the Quran.")],
+)
+
+# %%
+print(agent.run("What does the Quran say about making friends with disbelievers?"))
+
+# %%
+extract_tool_results(qagent.messages)
+
+# %%
 agent = CustomBaseAgent(model=llm, tools=[calculator])
-agent.run("What is the result of this calculation: 99.3 * 57.1 + 20 / 4 - 3?")
+agent.run("What is the result of this calculation: 12345678 / 43567?")
 # agent.run("What tools do you have? List them.")
 
 # %%
-# llm = LLM(model_name="gpt-4.1-nano")
-resp = llm.complete(messages, max_tokens=100)
+agent = CustomQuranAgent()
+agent.run("What does the Quran say about making friends with disbelievers?")
 
 # %%
 from quranai.quran.agent import get_verses
@@ -255,21 +269,6 @@ get_verses(4, 62, 63)
 resp.usage
 
 # %%
-llm = LLM(tools=(calculator,))
-llm.run_once("What is 10.765 times 100.5?")
-
-# %%
-from pprint import pprint
-
-pprint(tool_annotator(calculator)["function"])
-
-# %%
-agent = Agent(tools=[])
-
-# %%
-qagent = QuranAgent()
-
-# %%
 with cProfile.Profile() as pr:
     res = qagent.run("What does 1:1 say?", max_steps=3, return_full_result=True)
 s = io.StringIO()
@@ -277,9 +276,3 @@ sortby = pstats.SortKey.CUMULATIVE
 ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
 ps.print_stats()
 print(s.getvalue())
-
-# %%
-len(res.steps)
-
-# %%
-res.steps
