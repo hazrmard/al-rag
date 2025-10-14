@@ -5,6 +5,7 @@ This is a python+react chat application. The backend implements a chat agent usi
 ## Development rules:
 
 The entire app is deployed with a Dockerfile/docker-compose.yml.
+README files describe features and user guides.
 
 ### Backend
 

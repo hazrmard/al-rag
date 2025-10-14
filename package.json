@@ -4,10 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite src/frontend/index.html",
-    "build": "vite build src/frontend/index.html",
-    "lint": "eslint src/frontend/",
-    "preview": "vite preview src/frontend/index.html"
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint ./",
+    "preview": "vite preview"
   },
   "dependencies": {
     "react": "^19.1.1",

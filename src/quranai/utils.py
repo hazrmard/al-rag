@@ -1,6 +1,7 @@
 import importlib.resources
 import pathlib
-from typing import Any, Optional
+from pyexpat.errors import messages
+from typing import Any, Iterator, Optional, TypedDict
 import inspect
 from typing import Callable, Union, Literal, get_origin, get_args
 
@@ -197,12 +198,12 @@ def tool_annotator(tool: Callable) -> dict:
 
 
 def extract_tool_results(
-    messages: list[dict], filter_by_tool: Optional[str] = None
+    messages: Iterator[dict], filter_by_tool: Optional[str] = None
 ) -> list[dict]:
     """Extract tool results from a list of messages.
 
     Args:
-        messages (list[dict]): List of message dicts.
+        messages (Iterator[dict]): List of message dicts.
         filter_by_tool (Optional[str]): If provided, only include results from this tool.
 
     Returns:
@@ -214,6 +215,37 @@ def extract_tool_results(
             if filter_by_tool is None or msg.get("name") == filter_by_tool:
                 results.append(msg)
     return results
+
+
+class AgentState(TypedDict):
+    """Represents the state of an agent in the system."""
+
+    messages: tuple[dict[str, Any], ...]
+    agent_states: tuple["AgentState", ...]
+
+
+def extract_tool_results_from_state(
+    state: AgentState, filter_by_tool: Optional[str] = None
+) -> list[dict]:
+    """Extract tool results from an agent state dict.
+
+    Args:
+        state (AgentState): Agent state dict containing "messages" and "agent_states".
+        filter_by_tool (Optional[str]): If provided, only include results from this tool.
+
+    Returns:
+        list[dict]: List of tool result dicts with keys "role", "content", "tool_call_id", "name".
+    """
+
+    def iterator():
+        if "messages" in state:
+            yield from state["messages"]
+        if "agent_states" in state:
+            for agent_state in state["agent_states"]:
+                if "messages" in agent_state:
+                    yield from agent_state["messages"]
+
+    return extract_tool_results(iterator(), filter_by_tool=filter_by_tool)
 
 
 class SingletonMeta(type):

@@ -1,33 +1,13 @@
 import os
-from typing import Any, Callable, Iterable, Optional
-from inspect import Signature, Parameter
+from inspect import Parameter, Signature
+from typing import Any, Callable, Iterable, Optional, TypedDict
 
 from litellm import supports_reasoning  # pyright: ignore[reportPrivateImportUsage]
 from litellm import LiteLLM
 from smolagents import LiteLLMModel, ToolCallingAgent, tool
 
 from quranai.llm import LLM
-from quranai.utils import tool_annotator
-
-
-# deprecated
-class Agent(ToolCallingAgent):
-    """The base agent used by this application. All other agents inherit from this."""
-
-    # The function decorator to register tools
-    tool = lambda fn: dict(type="function", function=tool(fn))
-
-    def __init__(self, **kwargs):
-        _model_name = os.getenv("OPENAI_MODEL_NAME")
-        assert _model_name, "Please set the OPENAI_MODEL_NAME environment variable."
-        # See: https://docs.litellm.ai/docs/reasoning_content
-        _llm_kwargs = (
-            {"reasoning_effort": "low"} if supports_reasoning(_model_name) else {}
-        )
-        _LLM = LiteLLMModel(
-            model_id=_model_name, api_key=os.getenv("OPENAI_API_KEY"), **_llm_kwargs
-        )
-        super().__init__(model=_LLM, add_base_tools=False, max_steps=5, **kwargs)
+from quranai.utils import tool_annotator, AgentState
 
 
 class CustomBaseAgent:
@@ -50,7 +30,7 @@ class CustomBaseAgent:
         self.max_turns = max_turns
         self.messages: list[dict] = []
         self.tool_defs: dict[str, dict[str, Callable]] = {}
-        self.agents: list[CustomBaseAgent] = list(agents)
+        self.agents: list[CustomBaseAgent] = []
         self.model = model
         self.name = name
         self._setup(model=model, tools=tools, agents=agents, **kwargs)
@@ -71,15 +51,15 @@ class CustomBaseAgent:
         self.add_agents(*agents)
 
     @property
-    def state(self) -> dict[str, Any]:
+    def state(self) -> AgentState:
         return {
-            "messages": self.messages.copy(),
-            "agent_states": (agent.state for agent in self.agents),
+            "messages": tuple(self.messages),
+            "agent_states": tuple(agent.state for agent in self.agents),
         }
 
     @state.setter
-    def state(self, state: dict[str, Any]):
-        self.messages = state.get("messages", []).copy()
+    def state(self, state: AgentState):
+        self.messages = list(state.get("messages", []))
         agent_states = state.get("agent_states", [])
         for agent, agent_state in zip(self.agents, agent_states):
             agent.state = agent_state
@@ -90,6 +70,9 @@ class CustomBaseAgent:
     def add_agents(self, *agents: "CustomBaseAgent"):
         self.agents.extend(agents)
         for agent in agents:
+            assert (
+                isinstance(agent.name, str) and agent.name.isidentifier()
+            ), f"Invalid agent name: {agent.name}"
             self.add_tools(agent.as_tool())
 
     def reset(self):
@@ -126,7 +109,7 @@ class CustomBaseAgent:
                 break
         return self.messages[-1]["content"]
 
-    def __call__(self, task: str, state: dict) -> dict:
+    def __call__(self, task: str, state: AgentState) -> AgentState:
         """A pure function version of run.
 
         Args:
@@ -139,8 +122,8 @@ class CustomBaseAgent:
         try:
             self.state = state
             self.run(task)
-        finally:
             state = self.state
+        finally:
             self.state = _temp
         return state
 

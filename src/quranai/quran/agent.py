@@ -34,7 +34,7 @@ dict:                      # mapping of topic to list of references in the forma
 
 import re
 
-from quranai.agent import Agent as BaseAgent, CustomBaseAgent
+from quranai.agent import CustomBaseAgent
 from quranai.llm import LLM
 from quranai.utils import list_data_files, get_data_file_path
 from quranai.quran.corpus import Corpus, sanitize_topic
