@@ -222,39 +222,6 @@ def extract_verse_references(text: str) -> list[str]:
     return result
 
 
-class QuranAgent(BaseAgent):
-    def __init__(self, **kwargs) -> None:
-        """Initialize the QuranAgent with tool bindings and prompt templates.
-
-        Args:
-            **kwargs: Passed through to the BaseAgent initializer.
-        """
-        prompt = get_data_file_path(_TEMPLATE)
-        with prompt.open("r") as f:
-            prompt_templates = yaml.safe_load(f)
-        super().__init__(
-            tools=list(
-                map(
-                    self.__class__.tool,
-                    [
-                        get_verses,
-                        # get_chapter_intro,
-                        # get_verse_footnotes,
-                        # get_specific_footnote,
-                        # get_topics,
-                        # ---
-                        # get_cross_references,
-                        # get_verses_for_query,
-                        # get_verses_for_topic,
-                        # get_topics_for_query,
-                    ],
-                ),
-            ),
-            # prompt_templates=prompt_templates,
-            **kwargs,
-        )
-
-
 class CustomQuranAgent(CustomBaseAgent):
     def __init__(self, **kwargs) -> None:
         """Initialize the QuranAgent with tool bindings and prompt templates.
@@ -295,10 +262,3 @@ class CustomQuranAgent(CustomBaseAgent):
             ),
             **kwargs,
         )
-
-
-if __name__ == "__main__":
-    agent = QuranAgent()
-    from smolagents import GradioUI
-
-    GradioUI(agent).launch()

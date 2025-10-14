@@ -10,6 +10,7 @@ from quranai.llm import LLM
 from quranai.utils import tool_annotator
 
 
+# deprecated
 class Agent(ToolCallingAgent):
     """The base agent used by this application. All other agents inherit from this."""
 
@@ -42,6 +43,7 @@ class CustomBaseAgent:
         agents: Iterable["CustomBaseAgent"] = (),
         instructions: Optional[str] = None,
         max_turns: int = 5,
+        name: Optional[str] = None,
         **kwargs,
     ):
         self.instructions = instructions or "You are a helpful assistant."
@@ -50,6 +52,7 @@ class CustomBaseAgent:
         self.tool_defs: dict[str, dict[str, Callable]] = {}
         self.agents: list[CustomBaseAgent] = list(agents)
         self.model = model
+        self.name = name
         self._setup(model=model, tools=tools, agents=agents, **kwargs)
         self.reset()
 
@@ -65,6 +68,21 @@ class CustomBaseAgent:
         #     {"reasoning_effort": "low"} if supports_reasoning(_model_name) else {}
         # )
         self.add_tools(*tools)
+        self.add_agents(*agents)
+
+    @property
+    def state(self) -> dict[str, Any]:
+        return {
+            "messages": self.messages.copy(),
+            "agent_states": (agent.state for agent in self.agents),
+        }
+
+    @state.setter
+    def state(self, state: dict[str, Any]):
+        self.messages = state.get("messages", []).copy()
+        agent_states = state.get("agent_states", [])
+        for agent, agent_state in zip(self.agents, agent_states):
+            agent.state = agent_state
 
     def add_tools(self, *f: Callable[..., Any]):
         self.tool_defs.update(self.model.prepare_tools(f))
@@ -75,7 +93,9 @@ class CustomBaseAgent:
             self.add_tools(agent.as_tool())
 
     def reset(self):
-        self.messages = []
+        del self.messages[:]
+        for agent in self.agents:
+            agent.reset()
 
     def run(self, task: str):
         """Run the agent on a given task.
@@ -106,18 +126,23 @@ class CustomBaseAgent:
                 break
         return self.messages[-1]["content"]
 
-    def __call__(self, task: str) -> str:
-        """A helpful assistant that can independently answer speciaist questions
-        based on its role.
+    def __call__(self, task: str, state: dict) -> dict:
+        """A pure function version of run.
 
         Args:
             task (str): The task to run.
 
         Returns:
-            str: The result of the task.
+            dict: The conversation state after running the task.
         """
-        del self.messages[:]
-        return self.run(task)
+        _temp = self.state
+        try:
+            self.state = state
+            self.run(task)
+        finally:
+            state = self.state
+            self.state = _temp
+        return state
 
     def as_tool(
         self,
@@ -139,7 +164,7 @@ class CustomBaseAgent:
         """
 
         def tool_fn(task: str) -> str:
-            return self(task)
+            return self.run(task)
 
         # Ensure annotations are present so inspect.signature(tool_fn) reports types.
         tool_fn.__annotations__ = {"task": str, "return": str}
@@ -152,15 +177,24 @@ class CustomBaseAgent:
             return_annotation=str,
         )
 
-        if description is not None:
+        if description is None:
             description = (
-                description
-                + "\n\nArgs:\n    task (str): The task to run.\n\nReturns:\n    str: The result of the task."
+                "A helpful assistant that can independently answer specialist questions "
+                "based on its role."
             )
-        tool_fn.__doc__ = description or self.__call__.__doc__
+        description = (
+            description
+            + "\n\nArgs:\n    task (str): The task to run.\n\nReturns:\n    str: The result of the task."
+        )
+        tool_fn.__doc__ = description
 
-        if name is not None:
-            tool_fn.__name__ = name
-            tool_fn.__qualname__ = name
+        if not isinstance(name, str):
+            assert (
+                isinstance(self.name, str) and self.name.isidentifier()
+            ), f"Invalid tool name: {self.name}"
+        else:
+            assert name.isidentifier(), f"Invalid tool name: {name}"
+        tool_fn.__name__ = name or self.name
+        tool_fn.__qualname__ = name or self.name
 
         return tool_fn
