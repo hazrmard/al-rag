@@ -1,3 +1,4 @@
+# NOTE: Depracated
 import os
 from inspect import Parameter, Signature
 from typing import Any, Callable, Iterable, Optional, TypedDict

@@ -124,12 +124,28 @@ def get_topics(q: list[dict]) -> tuple[list[str], dict[str, list[str]]]:
     return sorted(list(t)), reverse
 
 
+def _prepare_verse_for_embedding(verse: dict) -> str:
+    """Prepare a verse for embedding by concatenating the chapter and verse number with the sanitized verse text.
+
+    Args:
+        verse (dict): A dictionary containing the verse data, including chapter number, verse number, and verse text.
+
+    Returns:
+        str: A string in the format "ch:verse: sanitized_verse_text" ready for embedding.
+    """
+    ch = verse["ch"]
+    v = verse["v"]
+    text = sanitize_verse(verse["v5"]["text"])
+    return f"{ch}:{v}: {text}"
+
+
 class Corpus(metaclass=SingletonMeta):
     """This is a singleton class to hold the Quran corpus in memory."""
 
     def __init__(self):
         self.quran = load_corpus_into_memory()
         self.topics, self.references = get_topics(self.quran)
+        self.vector_db = None
 
 
 def _build():

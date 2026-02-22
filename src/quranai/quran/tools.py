@@ -1,10 +1,10 @@
-"""An agent implementing tools to query the Quran corpus.
+"""Tools that can be used by an LLM agent to query the Quran corpus.
 
-The corpus is a database with the following structure:
+The Quran corpus is a database with the following structure:
 
 ```
 # Corpus.quran:
-list of dict:               # chapters can be indexed by chapter number - 1
+list of dict:               # chapters can be indexed by (chapter number - 1)
   chapter_name: str
   ch: int
   intro_en: str            # English introduction to the chapter
@@ -27,22 +27,19 @@ list of dict:               # chapters can be indexed by chapter number - 1
 list of str:               # sorted list of unique topics in the Quran
 
 # Corpus.references:
-dict:                      # mapping of topic to list of references in the format "ch:verse"
+dict:                      # mapping of topic to list of verse references in the format "ch:verse"
   topic: list of str
 ```
 """
 
 import re
 
-from quranai.agent import CustomBaseAgent
 from quranai.llm import LLM
 from quranai.utils import list_data_files, get_data_file_path
 from quranai.quran.corpus import Corpus, sanitize_topic
 import yaml
 
 
-# _TEMPLATE = "prompt_quran.yaml"
-_TEMPLATE = "prompt_minimal.yaml"
 corpus = Corpus()
 
 
@@ -220,45 +217,3 @@ def extract_verse_references(text: str) -> list[str]:
             v = int(verses_str)
             result.append(f"{ch}:{v}")
     return result
-
-
-class CustomQuranAgent(CustomBaseAgent):
-    def __init__(self, **kwargs) -> None:
-        """Initialize the QuranAgent with tool bindings and prompt templates.
-
-        Args:
-            **kwargs: Passed through to the BaseAgent initializer.
-        """
-        llm = LLM(model_name="gpt-4.1-mini")
-        super().__init__(
-            model=llm,
-            tools=list(
-                [
-                    get_verses,
-                    get_chapter_intro,
-                    get_verse_footnotes,
-                    get_specific_footnote,
-                    get_topics,
-                    # ---
-                    # get_cross_references,
-                    # get_verses_for_query,
-                    # get_verses_for_topic,
-                    # get_topics_for_query,
-                ],
-            ),
-            instructions=(
-                "You are a helpful assistant that answers questions "
-                "about the Quran. Use the provided tools to look up "
-                "verses, chapter introductions, footnotes, and topics "
-                "as needed. Your priority is to give a nuanced view "
-                "of the text and its interpretations. This means understanding "
-                "context in light of footnotes and cross-references. "
-                "Your primary goal is as an Apologist for the Quran, "
-                "helping users understand and appreciate its teachings. "
-                "You may take multiple turns to retrieve content, ask clarifying "
-                "quesstions, and think through your responses. The final "
-                "response should cite every claim. You do not need to reproduce "
-                "the full text of the verses, only the references (e.g. 2:255)."
-            ),
-            **kwargs,
-        )

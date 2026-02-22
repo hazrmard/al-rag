@@ -20,6 +20,7 @@ import os
 import re
 from pathlib import Path
 import requests, json
+
 # import numpy as np
 # from litellm import embedding, completion, completion_cost
 import json
@@ -30,7 +31,7 @@ import quranai
 from quranai.utils import schema, list_data_files, get_data_file_path
 from quranai.quran.corpus import corpus_json
 
-load_dotenv("./.env", override=True);
+load_dotenv("./.env", override=True)
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Download
@@ -166,6 +167,7 @@ topics_collection = chroma_client.get_or_create_collection(name="quran_topics")
 # Prompt --vectorDB--> topic --table lookup--> verses
 # Prompt --vectorDB--> verses
 
+
 # %%
 def topic_metadata_to_database(topics, collection):
     collection.upsert(ids=topics, documents=topics)
@@ -199,7 +201,7 @@ print(find("What is forgiveness?", c["quran"]))
 
 # %%
 from quranai.agent import Agent, CustomBaseAgent
-from quranai.quran.agent import QuranAgent, CustomQuranAgent
+from quranai.quran.tools import QuranAgent, CustomQuranAgent
 from quranai.llm import LLM, tool_annotator
 from quranai.utils import extract_tool_results, tool_annotator
 import cProfile, pstats, io, os
@@ -261,7 +263,7 @@ agent = CustomQuranAgent()
 agent.run("What does the Quran say about making friends with disbelievers?")
 
 # %%
-from quranai.quran.agent import get_verses
+from quranai.quran.tools import get_verses
 
 get_verses(4, 62, 63)
 

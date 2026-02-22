@@ -1,9 +1,0 @@
-streamlit
-litellm
-chromadb
-python-dotenv
-jupyter
-jupytext
-numpy
-pysqlite3-binary
-pydantic
