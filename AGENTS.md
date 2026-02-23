@@ -15,6 +15,7 @@ The AI Agent is a combination of an Agentic framework and custom tools for the c
 
 - Aways maintain a TODO list of completed and unfinished work in AGENTS.md
 - Update README.md with installation, development, deployment, and testing instructions.
+- Before making changes, write the proposed plan in a PLAN.md document. Only write code once I approve the plan. Remove PLAN.md after making code changes.
 
 ### Backend
 

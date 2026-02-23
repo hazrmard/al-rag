@@ -5,6 +5,7 @@ __pycache__/
 *.ipynb
 .venv/
 .gradio/
+.adk/
 
 # Logs
 logs

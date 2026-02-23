@@ -1,9 +1,12 @@
 """Functions to load Quran corpus data."""
 
-import requests
+from typing import Generator
 import json
 import re
 from collections import defaultdict
+
+import requests
+import chromadb
 
 from quranai.utils import SingletonMeta, list_data_files, get_data_file_path
 
@@ -13,6 +16,7 @@ verses_url = "/express/chapter/{ch}:{start}-{end}"
 chapters = 114
 corpus_json = "quran.json"
 vector_db = "quranai.chroma"
+chunk_embed_dimension = 1024
 
 
 payload = {
@@ -60,6 +64,11 @@ def download_ch(n=1, start=1, end=300) -> dict:
 
 def download_all_chapters(start=1, end=chapters + 1) -> list[dict]:
     return [download_ch(n, 1, 300) for n in range(start, end)]
+
+
+def get_local_vector_db():
+    path = get_data_file_path(vector_db)
+    client = chromadb.PersistentClient(path)
 
 
 # Processing functions for text elements
@@ -124,6 +133,15 @@ def get_topics(q: list[dict]) -> tuple[list[str], dict[str, list[str]]]:
     return sorted(list(t)), reverse
 
 
+class Corpus(metaclass=SingletonMeta):
+    """This is a singleton class to hold the Quran corpus in memory."""
+
+    def __init__(self):
+        self.quran = load_corpus_into_memory()
+        self.topics, self.references = get_topics(self.quran)
+        self.vector_db = None
+
+
 def _prepare_verse_for_embedding(verse: dict) -> str:
     """Prepare a verse for embedding by concatenating the chapter and verse number with the sanitized verse text.
 
@@ -136,16 +154,59 @@ def _prepare_verse_for_embedding(verse: dict) -> str:
     ch = verse["ch"]
     v = verse["v"]
     text = sanitize_verse(verse["v5"]["text"])
+    footnotes = "\n".join(f"[{n['ref']}]: {n['note']}" for n in verse["v5"]["notes"])
+    if footnotes:
+        text += "\n" + footnotes
     return f"{ch}:{v}: {text}"
 
 
-class Corpus(metaclass=SingletonMeta):
-    """This is a singleton class to hold the Quran corpus in memory."""
+def _prepare_verse_for_display(verse: dict) -> str:
+    """Prepare a verse for display by concatenating the chapter and verse number with the original verse text.
 
-    def __init__(self):
-        self.quran = load_corpus_into_memory()
-        self.topics, self.references = get_topics(self.quran)
-        self.vector_db = None
+    Args:
+        verse (dict): A dictionary containing the verse data, including chapter number, verse number, and verse text.
+
+    Returns:
+        str: A string in the format "ch:verse: original_verse_text" ready for display.
+    """
+    ch = verse["ch"]
+    v = verse["v"]
+    text = verse["v5"]["text"]
+    return f"{ch}:{v}: {text}"
+
+
+def chunks(corpus: Corpus, chunk_size: int = 2) -> Generator[list[str]]:
+    iterator = (
+        _prepare_verse_for_display(v)
+        for chapter in corpus.quran
+        for v in chapter["verses"]
+    )
+    batch = []
+    for item in iterator:
+        batch.append(item)
+        if len(batch) == chunk_size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
+
+
+def embed_chunks(chunks: list[str]) -> list[list[float]]:
+    from google.genai.types import EmbedContentConfig
+    from google.genai import Client
+    import os
+
+    client = Client(api_key=os.getenv("GOOGLE_API_KEY"))
+    result = client.models.embed_content(
+        model="gemini-embedding-001",
+        contents=chunks,
+        config=EmbedContentConfig(
+            task_type="RETRIEVAL_DOCUMENT", output_dimensionality=chunk_embed_dimension
+        ),
+    )
+    if result.embeddings is None or result.embeddings[0].values:
+        raise ValueError("Embedding failed: no embeddings returned")
+    return [result.embeddings[i].values for i in range(len(chunks))]  # type: ignore
 
 
 def _build():

@@ -20,7 +20,6 @@ import os
 import re
 from pathlib import Path
 import requests, json
-
 # import numpy as np
 # from litellm import embedding, completion, completion_cost
 import json
@@ -31,7 +30,7 @@ import quranai
 from quranai.utils import schema, list_data_files, get_data_file_path
 from quranai.quran.corpus import corpus_json
 
-load_dotenv("./.env", override=True)
+load_dotenv("./.env", override=True);
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Download
@@ -167,7 +166,6 @@ topics_collection = chroma_client.get_or_create_collection(name="quran_topics")
 # Prompt --vectorDB--> topic --table lookup--> verses
 # Prompt --vectorDB--> verses
 
-
 # %%
 def topic_metadata_to_database(topics, collection):
     collection.upsert(ids=topics, documents=topics)
@@ -199,59 +197,41 @@ print(find("What is forgiveness?", c["quran"]))
 # %% [markdown]
 # ## LLM
 
+# %% [markdown]
+# ### Custom Agent
+
 # %%
-from quranai.agent import Agent, CustomBaseAgent
-from quranai.quran.tools import QuranAgent, CustomQuranAgent
+from quranai.agent import CustomBaseAgent
+from quranai.quran.agent import CustomQuranAgent
 from quranai.llm import LLM, tool_annotator
-from quranai.utils import extract_tool_results, tool_annotator
+from quranai.utils import extract_tool_results, tool_annotator, AgentState
 import cProfile, pstats, io, os
 
 print(os.getenv("OPENAI_MODEL_NAME"))
 
 # %%
-from typing import Literal
-
-
-def calculator(
-    x: float, y: float, op: Literal["add", "subtract", "multiply", "divide"]
-) -> float | str:
-    """Performs basic arithmetic operations.
-
-    Args:
-        x (float): The first operand.
-        y (float): The second operand.
-        op (str): The operation to perform.
-
-    Returns:
-        float: The result of the arithmetic operation.
-    """
-    x, y = float(x), float(y)
-    if op == "add":
-        return x + y
-    elif op == "subtract":
-        return x - y
-    elif op == "multiply":
-        return x * y
-    elif op == "divide":
-        return x / y
-    else:
-        return f"Unknown operation: {op}"
-
-
-# %%
 llm = LLM(model_name="gpt-4.1-mini")
-qagent = CustomQuranAgent()
+quran_assistant = CustomQuranAgent(name="quran_assistant")
 
 agent = CustomBaseAgent(
     model=llm,
-    tools=[calculator, qagent.as_tool(description="A research agent for the Quran.")],
+    tools=[],
+    agents=[quran_assistant],
 )
+
+# %%
+quran_assistant.state
+
+# %%
+state = agent.state
+state = agent("Who are you? Be short.", state=state)
+print(state)
 
 # %%
 print(agent.run("What does the Quran say about making friends with disbelievers?"))
 
 # %%
-extract_tool_results(qagent.messages)
+extract_tool_results(quran_assistant.messages)
 
 # %%
 agent = CustomBaseAgent(model=llm, tools=[calculator])
@@ -263,7 +243,7 @@ agent = CustomQuranAgent()
 agent.run("What does the Quran say about making friends with disbelievers?")
 
 # %%
-from quranai.quran.tools import get_verses
+from quranai.quran.agent import get_verses
 
 get_verses(4, 62, 63)
 
@@ -278,3 +258,23 @@ sortby = pstats.SortKey.CUMULATIVE
 ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
 ps.print_stats()
 print(s.getvalue())
+
+# %% [markdown]
+# ### Google ADK
+
+# %% [markdown]
+#
+
+# %% [markdown]
+# ## Index
+
+# %%
+from quranai.quran.corpus import (
+    Corpus,
+    _prepare_verse_for_embedding,
+    _prepare_verse_for_display,
+    embed_chunks,
+)
+
+# %%
+c = Corpus()
