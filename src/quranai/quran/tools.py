@@ -36,7 +36,7 @@ import re
 
 from quranai.llm import LLM
 from quranai.utils import list_data_files, get_data_file_path
-from quranai.quran.corpus import Corpus, sanitize_topic
+from quranai.quran.corpus import Corpus, sanitize_topic, embed_chunks
 import yaml
 
 
@@ -44,8 +44,11 @@ corpus = Corpus()
 
 
 def get_verses(ch: int, start: int, end: int) -> list[str]:
-    """Return a list of verses for a chapter between start and
-    end.
+    """Return a list of verses for a chapter between start and end.
+
+    Verses are typically referenced in the format "ch:verse" or "ch:verse-verse".
+    For example, "2:255" refers to chapter 2, verse 255. "2:255-257"
+    refers to chapter 2, verses 255 through 257 inclusive.
 
     Args:
         ch: Chapter number (1-indexed).
@@ -137,16 +140,39 @@ def get_cross_references(ch: int, start: int, end: int) -> list[dict]:
     pass
 
 
-def get_verses_for_query(query: str) -> list[dict]:
-    """Return verses whose translation text contains a query substring.
+def get_verses_for_query(query: str, num_results: int = 3) -> list[dict]:
+    """Search for verses and their commentary by a query.
+
+    The query string can be natural language.
 
     Args:
-        query: Substring to search for in verse translations.
+        query: The query string to search for in the corpus.
 
     Returns:
-        A list of verse dicts that match the query.
+        Excerpts of verses matching the query.
     """
-    return [v for ch in corpus.quran for v in ch["verses"] if query in v["v5"]["text"]]
+    query_embedding = embed_chunks([query], mode="RETRIEVAL_QUERY")[0]
+    verses_collection = corpus.verses_collection
+    results = verses_collection.query(
+        query_embeddings=[query_embedding], n_results=num_results
+    )
+    ids = results["ids"][0]  # ids of form ch:verse-verse
+    get_verses_args = []
+    for id_ in ids:
+        ch_str, verses_str = id_.split(":")
+        ch = int(ch_str)
+        if "-" in verses_str:
+            start_str, end_str = verses_str.split("-")
+            start = int(start_str)
+            end = int(end_str)
+        else:
+            start = int(verses_str)
+            end = start
+        get_verses_args.append((ch, start, end))
+    verses = []
+    for ch, start, end in get_verses_args:
+        verses.extend(get_verses(ch, start, end))
+    return verses
 
 
 def get_verses_for_topic(topic: str) -> list[dict]:

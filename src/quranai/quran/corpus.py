@@ -1,14 +1,22 @@
 """Functions to load Quran corpus data."""
 
-from typing import Generator
 import json
+import time
+from datetime import datetime
 import re
 from collections import defaultdict
+from typing import Any, Dict, Generator, Literal
 
-import requests
 import chromadb
+import numpy as np
+import requests
+from chromadb import Documents, EmbeddingFunction, Embeddings
+from chromadb.api import ClientAPI
+from chromadb.utils.embedding_functions import register_embedding_function
+from tqdm import trange
+from google.genai.errors import ClientError as GoogleClientError
 
-from quranai.utils import SingletonMeta, list_data_files, get_data_file_path
+from quranai.utils import SingletonMeta, get_data_file_path, list_data_files
 
 url = "https://api.openquran.com"
 intro_url = "/express/chapter/intro/{ch}"
@@ -16,7 +24,7 @@ verses_url = "/express/chapter/{ch}:{start}-{end}"
 chapters = 114
 corpus_json = "quran.json"
 vector_db = "quranai.chroma"
-chunk_embed_dimension = 1024
+chunk_embed_dimension = 3072
 
 
 payload = {
@@ -66,9 +74,16 @@ def download_all_chapters(start=1, end=chapters + 1) -> list[dict]:
     return [download_ch(n, 1, 300) for n in range(start, end)]
 
 
-def get_local_vector_db():
+def get_local_vector_db() -> ClientAPI:
     path = get_data_file_path(vector_db)
     client = chromadb.PersistentClient(path)
+    return client
+
+
+def get_verses_collection(db: ClientAPI):
+    return db.get_or_create_collection(
+        name="verses", embedding_function=CustomEmbeddingFunction()
+    )
 
 
 # Processing functions for text elements
@@ -136,10 +151,16 @@ def get_topics(q: list[dict]) -> tuple[list[str], dict[str, list[str]]]:
 class Corpus(metaclass=SingletonMeta):
     """This is a singleton class to hold the Quran corpus in memory."""
 
-    def __init__(self):
+    def __init__(self, mode: Literal["local", "remote"] = "local"):
         self.quran = load_corpus_into_memory()
         self.topics, self.references = get_topics(self.quran)
-        self.vector_db = None
+        if mode == "local":
+            self.vector_db = get_local_vector_db()
+            self.verses_collection = get_verses_collection(self.vector_db)
+        elif mode == "remote":
+            raise NotImplementedError("Remote mode is not implemented yet")
+        else:
+            raise ValueError("Invalid mode. Use 'local' or 'remote'.")
 
 
 def _prepare_verse_for_embedding(verse: dict) -> str:
@@ -154,7 +175,9 @@ def _prepare_verse_for_embedding(verse: dict) -> str:
     ch = verse["ch"]
     v = verse["v"]
     text = sanitize_verse(verse["v5"]["text"])
-    footnotes = "\n".join(f"[{n['ref']}]: {n['note']}" for n in verse["v5"]["notes"])
+    footnotes = "Footnotes:\n" + "\n".join(
+        f"[{n['ref']}]: {n['note']}" for n in verse["v5"]["notes"]
+    )
     if footnotes:
         text += "\n" + footnotes
     return f"{ch}:{v}: {text}"
@@ -175,41 +198,73 @@ def _prepare_verse_for_display(verse: dict) -> str:
     return f"{ch}:{v}: {text}"
 
 
-def chunks(corpus: Corpus, chunk_size: int = 2) -> Generator[list[str]]:
-    iterator = (
-        _prepare_verse_for_display(v)
-        for chapter in corpus.quran
-        for v in chapter["verses"]
-    )
-    batch = []
-    for item in iterator:
-        batch.append(item)
-        if len(batch) == chunk_size:
-            yield batch
-            batch = []
-    if batch:
-        yield batch
+def chunks(
+    corpus: Corpus, chunk_size: int = 2, overlap: int = 0
+) -> Generator[tuple[str, str], None, None]:
+    assert chunk_size > 0, "Chunk size must be greater than 0"
+    assert 0 <= overlap < chunk_size, "Overlap must be between 0 and chunk size"
+    for chapter in corpus.quran:
+        iterator = (v for v in chapter["verses"])
+        batch = []
+        ch_ = chapter["ch"]
+        for verse in iterator:
+            batch.append(_prepare_verse_for_embedding(verse))
+            if len(batch) == chunk_size:
+                id_ = f"{ch_}:{verse['v']-chunk_size+1}-{verse['v']}"
+                yield id_, "\n\n".join(batch)
+                batch = batch[-overlap:]
+        if batch:
+            id_ = f"{ch_}:{verse['v']-len(batch)+1}-{verse['v']}"  # type: ignore
+            yield id_, "\n\n".join(batch)
 
 
-def embed_chunks(chunks: list[str]) -> list[list[float]]:
-    from google.genai.types import EmbedContentConfig
-    from google.genai import Client
+def embed_chunks(
+    chunks: list[str],
+    mode: Literal[
+        "RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY", "QUESTION_ANSWERING"
+    ] = "RETRIEVAL_DOCUMENT",
+) -> list[np.ndarray]:
     import os
+
+    from google.genai import Client
+    from google.genai.types import EmbedContentConfig
 
     client = Client(api_key=os.getenv("GOOGLE_API_KEY"))
     result = client.models.embed_content(
         model="gemini-embedding-001",
-        contents=chunks,
+        contents=chunks,  # type: ignore
         config=EmbedContentConfig(
-            task_type="RETRIEVAL_DOCUMENT", output_dimensionality=chunk_embed_dimension
+            task_type=mode, output_dimensionality=chunk_embed_dimension
         ),
     )
-    if result.embeddings is None or result.embeddings[0].values:
+    if result.embeddings is None or not result.embeddings[0].values:
         raise ValueError("Embedding failed: no embeddings returned")
-    return [result.embeddings[i].values for i in range(len(chunks))]  # type: ignore
+    return [np.asarray(result.embeddings[i].values) for i in range(len(chunks))]
 
 
-def _build():
+@register_embedding_function
+class CustomEmbeddingFunction(EmbeddingFunction):
+
+    def __init__(self, model="gemini-embedding-001"):
+        self.model = model
+
+    def __call__(self, input: Documents) -> Embeddings:
+        # embed the documents somehow
+        return embed_chunks(input)  # type: ignore
+
+    @staticmethod
+    def name() -> str:
+        return "custom_embedding_function"
+
+    def get_config(self) -> Dict[str, Any]:
+        return dict(model=self.model)
+
+    @staticmethod
+    def build_from_config(config: Dict[str, Any]) -> "EmbeddingFunction":
+        return CustomEmbeddingFunction(config["model"])
+
+
+def _build(batches_per_request=20):
     """This function builds an index of the corpus.
 
     Steps:
@@ -217,8 +272,19 @@ def _build():
     2. Generate metadata for each chunk (topics, cross-references etc.)
     3. Generate embeddings for each chunk.
     4. Store the chunks and their embeddings in a vector database."""
-    pass
-
-
-if __name__ == "__main__":
-    _build()
+    corpus = Corpus()
+    ids, chunks_ = zip(*chunks(corpus, chunk_size=10, overlap=2))
+    start = datetime.now()
+    for i in trange(0, len(chunks_), batches_per_request, leave=False):
+        batch_chunks = list(chunks_[i : i + batches_per_request])
+        batch_ids = list(ids[i : i + batches_per_request])
+        try:
+            embeddings = embed_chunks(batch_chunks)
+        except GoogleClientError as e:
+            delay = 60 - (datetime.now() - start).seconds
+            print(f"Google API error: {e}. Retrying after a delay of {delay} seconds.")
+            time.sleep(delay)  # wait for the minute to pass
+            start = datetime.now()
+            embeddings = embed_chunks(batch_chunks)
+        collection = corpus.verses_collection
+        collection.add(embeddings=embeddings, ids=batch_ids)
