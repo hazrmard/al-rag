@@ -7,6 +7,7 @@ This application exposes:
 1. A web interface
 2. A MCP server
 3. A CLI
+4. The core agent library
 
 To interact with the corpus.
 
@@ -18,6 +19,12 @@ To run the web interface:
 
 ```
 uv run adk web --port 8000 src/quranai/
+```
+
+`src/scripts/` defines utility scripts to build indices and other workflows not part of runtime. Run them using:
+
+```
+uv run src/scripts/...
 ```
 
 ## Deployment

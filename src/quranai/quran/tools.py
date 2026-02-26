@@ -109,7 +109,7 @@ def get_specific_footnote(ch: int, verse: int, ref: str) -> str:
     return f"{ref}: Footnote [{ref}] not found for {ch}:{verse}."
 
 
-def get_topics(ch: int, start: int, end: int) -> list[str]:
+def get_topics_in_verse(ch: int, start: int, end: int) -> list[str]:
     """Return the list of topics associated with a specific verse.
 
     Args:
@@ -118,12 +118,31 @@ def get_topics(ch: int, start: int, end: int) -> list[str]:
         end: Ending verse number (1-indexed, inclusive).
 
     Returns:
-        A list of topic dictionaries for the verse.
+        A list of topic strings for the verse.
     """
     topics = []
     for verse in corpus.quran[ch - 1]["verses"][start - 1 : end]:
         topics.extend(verse["topics"])
     return sorted(list(set([sanitize_topic(t["topic"]) for t in topics])))
+
+
+def get_topics_for_query(query: str, num_results: int = 10) -> list[str]:
+    """Search for topics relevant to a query.
+
+    Args:
+        query: The query string/keywords to semantically to search for.
+        num_results: The number of relevant topics to return.
+
+    Returns:
+        A list of topic strings relevant to the query.
+    """
+    query_embedding = embed_chunks([query], mode="RETRIEVAL_QUERY")[0]
+    topics_collection = corpus.topics_collection
+    results = topics_collection.query(
+        query_embeddings=[query_embedding], n_results=num_results
+    )
+    ids = results["ids"][0]  # ids of form ch:verse-verse
+    return ids
 
 
 def get_cross_references(ch: int, start: int, end: int) -> list[dict]:
@@ -141,12 +160,12 @@ def get_cross_references(ch: int, start: int, end: int) -> list[dict]:
 
 
 def get_verses_for_query(query: str, num_results: int = 3) -> list[dict]:
-    """Search for verses and their commentary by a query.
+    """Search for verses and their commentary that match a query.
 
     The query string can be natural language.
 
     Args:
-        query: The query string to search for in the corpus.
+        query: The query string to semantically search for in the corpus.
 
     Returns:
         Excerpts of verses matching the query.
@@ -192,22 +211,6 @@ def get_verses_for_topic(topic: str) -> list[dict]:
     for ch, v in tuples:
         verses.extend(get_verses(ch, v, v))
     return verses
-
-
-def get_topics_for_query(query: str) -> list[dict]:
-    """Return topics relevant to a query.
-
-    This tool is intended to map a free-text query to topics found in the corpus.
-
-    Args:
-        query: Free-text query string.
-
-    Returns:
-        A list of topic dictionaries relevant to the query. Each dict contains at least the
-        'topic' key.
-    """
-    # Match topics by simple substring match on the corpus topics list.
-    return [{"topic": t} for t in getattr(corpus, "topics", []) if query in t]
 
 
 def extract_verse_references(text: str) -> list[str]:

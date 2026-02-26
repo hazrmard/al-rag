@@ -25,6 +25,12 @@ The AI Agent is a combination of an Agentic framework and custom tools for the c
 - Use google-adk for AI agent development. The skeleton is defined in src/quranai/agent/
 - Ignore legacy modules: src/quranai/agent.py and src/quranai/llm.py
 
+#### Agent
+
+Library: https://google.github.io/adk-docs/
+
+The agent has tools available for simple questions. It also has sub-agents to do complex retrieval, planning, summarization of questions.
+
 ### Frontend
 
 - The frontend is a web app.

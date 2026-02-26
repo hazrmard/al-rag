@@ -80,9 +80,15 @@ def get_local_vector_db() -> ClientAPI:
     return client
 
 
-def get_verses_collection(db: ClientAPI):
+def get_verses_collection(db: ClientAPI) -> chromadb.Collection:
     return db.get_or_create_collection(
         name="verses", embedding_function=CustomEmbeddingFunction()
+    )
+
+
+def get_topics_collection(db: ClientAPI) -> chromadb.Collection:
+    return db.get_or_create_collection(
+        name="topics", embedding_function=CustomEmbeddingFunction()
     )
 
 
@@ -157,6 +163,7 @@ class Corpus(metaclass=SingletonMeta):
         if mode == "local":
             self.vector_db = get_local_vector_db()
             self.verses_collection = get_verses_collection(self.vector_db)
+            self.topics_collection = get_topics_collection(self.vector_db)
         elif mode == "remote":
             raise NotImplementedError("Remote mode is not implemented yet")
         else:
@@ -224,6 +231,20 @@ def embed_chunks(
         "RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY", "QUESTION_ANSWERING"
     ] = "RETRIEVAL_DOCUMENT",
 ) -> list[np.ndarray]:
+    """Converts a list of strings into embedding vectors.
+
+    Args:
+        chunks (list[str]): List of strings to embed.
+        mode (Literal[ RETRIEVAL_DOCUMENT, RETRIEVAL_QUERY, QUESTION_ANSWERING ], optional):
+        The embedding mode. The default mode is for storing documents. The others are
+        for querying documents.. Defaults to "RETRIEVAL_DOCUMENT".
+
+    Raises:
+        ValueError: _description_
+
+    Returns:
+        list[np.ndarray]: List of embeddings.
+    """
     import os
 
     from google.genai import Client
@@ -264,7 +285,7 @@ class CustomEmbeddingFunction(EmbeddingFunction):
         return CustomEmbeddingFunction(config["model"])
 
 
-def _build(batches_per_request=20):
+def _build_verse_index(batches_per_request=20):
     """This function builds an index of the corpus.
 
     Steps:
@@ -287,4 +308,28 @@ def _build(batches_per_request=20):
             start = datetime.now()
             embeddings = embed_chunks(batch_chunks)
         collection = corpus.verses_collection
+        collection.add(embeddings=embeddings, ids=batch_ids)
+
+
+def _build_topic_index(batches_per_request=100):
+    """This function builds an index of the corpus.
+
+    Steps:
+    1. Generate topics from the corpus.
+    2. Generate embeddings for each topic.
+    3. Store the topics and their embeddings in a vector database."""
+    topics = Corpus().topics
+    start = datetime.now()
+    for i in trange(0, len(topics), batches_per_request, leave=False):
+        batch_topics = list(topics[i : i + batches_per_request])
+        batch_ids = topics[i : i + batches_per_request]
+        try:
+            embeddings = embed_chunks(batch_topics)
+        except GoogleClientError as e:
+            delay = 60 - (datetime.now() - start).seconds
+            print(f"Google API error: {e}. Retrying after a delay of {delay} seconds.")
+            time.sleep(delay)  # wait for the minute to pass
+            start = datetime.now()
+            embeddings = embed_chunks(batch_topics)
+        collection = Corpus().topics_collection
         collection.add(embeddings=embeddings, ids=batch_ids)
