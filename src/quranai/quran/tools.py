@@ -194,14 +194,14 @@ def get_verses_for_query(query: str, num_results: int = 3) -> list[dict]:
     return verses
 
 
-def get_verses_for_topic(topic: str) -> list[dict]:
+def get_verses_for_topic(topic: str) -> list[str]:
     """Return verses associated with a given topic.
 
     Args:
         topic: Topic string to match.
 
     Returns:
-        A list of verse dicts that include the topic.
+        A list of verse strings that include the topic.
     """
     references = corpus.references.get(sanitize_topic(topic), [])  # list of "ch:verse"
     tuples = [(int(r.split(":")[0]), int(r.split(":")[1])) for r in references]
