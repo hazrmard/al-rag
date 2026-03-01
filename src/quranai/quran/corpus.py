@@ -13,7 +13,7 @@ import requests
 from chromadb import Documents, EmbeddingFunction, Embeddings
 from chromadb.api import ClientAPI
 from chromadb.utils.embedding_functions import register_embedding_function
-from tqdm import trange
+from tqdm import tqdm, trange
 from google.genai.errors import ClientError as GoogleClientError
 
 from quranai.utils import SingletonMeta, get_data_file_path, list_data_files
@@ -92,6 +92,12 @@ def get_topics_collection(db: ClientAPI) -> chromadb.Collection:
     )
 
 
+def get_chapter_intros_collection(db: ClientAPI) -> chromadb.Collection:
+    return db.get_or_create_collection(
+        name="chapter_intros", embedding_function=CustomEmbeddingFunction()
+    )
+
+
 # Processing functions for text elements
 def sanitize_verse(s: str):
     """Remove [ ] footnote markers and <> tags from text"""
@@ -164,6 +170,9 @@ class Corpus(metaclass=SingletonMeta):
             self.vector_db = get_local_vector_db()
             self.verses_collection = get_verses_collection(self.vector_db)
             self.topics_collection = get_topics_collection(self.vector_db)
+            self.chapter_intros_collection = get_chapter_intros_collection(
+                self.vector_db
+            )
         elif mode == "remote":
             raise NotImplementedError("Remote mode is not implemented yet")
         else:
@@ -333,3 +342,43 @@ def _build_topic_index(batches_per_request=100):
             embeddings = embed_chunks(batch_topics)
         collection = Corpus().topics_collection
         collection.add(embeddings=embeddings, ids=batch_ids)
+
+
+def _build_chapter_intro_index():
+    """This function builds an index of chapter introductions in the corpus."""
+    corpus = Corpus()
+    batches_per_request = 5
+
+    def _chunks():
+        batch, ids = [], []
+        for ch in corpus.quran:
+            intro = ch["intro_en"]
+            if intro:
+                id_ = f"{ch['ch']}:{ch['chapter_name']}"
+                batch.append(intro)
+                ids.append(id_)
+                if len(batch) == batches_per_request:
+                    yield ids, batch
+                    batch, ids = [], []
+        if batch:
+            yield ids, batch
+
+    start = datetime.now()
+    for ids, chunks in tqdm(
+        _chunks(),
+        total=(
+            len(corpus.quran) // batches_per_request
+            + len(corpus.quran) % batches_per_request
+        ),
+        leave=False,
+    ):
+        try:
+            embeddings = embed_chunks(chunks)
+        except GoogleClientError as e:
+            delay = 60 - (datetime.now() - start).seconds
+            print(f"Google API error: {e}. Retrying after a delay of {delay} seconds.")
+            time.sleep(delay)  # wait for the minute to pass
+            start = datetime.now()
+            embeddings = embed_chunks(chunks)
+        collection = corpus.chapter_intros_collection
+        collection.add(embeddings=embeddings, ids=ids)

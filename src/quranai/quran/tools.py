@@ -74,6 +74,29 @@ def get_chapter_intro(ch: int) -> str:
     return corpus.quran[ch - 1]["intro_en"]
 
 
+def get_chapter_intros_by_query(query: str, num_results: int = 5) -> list[dict]:
+    """Search for chapter introductions relevant to a query.
+
+    Args:
+        query: The query string/keywords to semantically to search for.
+        num_results: The number of relevant chapter intros to return.
+    Returns:
+        A list of chapter numbers, names, and introductions.
+    """
+    query_embedding = embed_chunks([query], mode="RETRIEVAL_QUERY")[0]
+    intros_collection = corpus.chapter_intros_collection
+    results = intros_collection.query(
+        query_embeddings=[query_embedding], n_results=num_results
+    )
+    chapters = [int(id.split(":")[0]) for id in results["ids"][0]]  # ids of form "ch"
+    intros = []
+    for ch in chapters:
+        chapter_name = corpus.quran[ch]["chapter_name"]
+        intro_en = corpus.quran[ch]["intro_en"]
+        intros.append({"ch": ch, "chapter_name": chapter_name, "intro_en": intro_en})
+    return intros
+
+
 def get_verse_footnotes(ch: int, verse: int) -> list[str]:
     """Return the list of footnotes for a specific verse, referenced as `[ref]` in the verse text.
     For example, `[1]`, `[a]`, etc.
