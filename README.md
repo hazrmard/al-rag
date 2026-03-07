@@ -18,7 +18,7 @@ To interact with the corpus.
 To run the web interface:
 
 ```
-uv run adk web --port 8000 src/quranai/
+uv run adk web --log_level DEBUG --port 8000 src/quranai/agents/
 ```
 
 `src/scripts/` defines utility scripts to build indices and other workflows not part of runtime. Run them using:
