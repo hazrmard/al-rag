@@ -27,7 +27,7 @@ root_agent = Agent(
         tools.get_verses_for_query,
         tools.get_topics_for_query,
         tools.get_verses_for_topic,
-        agent_tool.AgentTool(agent=deepdive_agent, skip_summarization=True),
+        agent_tool.AgentTool(agent=deepdive_agent, skip_summarization=False),
     ],
     # sub_agents=[
     #     planner_agent

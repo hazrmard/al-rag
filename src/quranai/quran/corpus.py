@@ -216,7 +216,7 @@ def _prepare_verse_for_display(verse: dict) -> str:
 
 def chunks(
     corpus: Corpus, chunk_size: int = 2, overlap: int = 0
-) -> Generator[tuple[str, str], None, None]:
+) -> Generator[tuple[str, str, dict[str, Any]], None, None]:
     assert chunk_size > 0, "Chunk size must be greater than 0"
     assert 0 <= overlap < chunk_size, "Overlap must be between 0 and chunk size"
     for chapter in corpus.quran:
@@ -227,11 +227,12 @@ def chunks(
             batch.append(_prepare_verse_for_embedding(verse))
             if len(batch) == chunk_size:
                 id_ = f"{ch_}:{verse['v']-chunk_size+1}-{verse['v']}"
-                yield id_, "\n\n".join(batch)
+                metadata = dict(ch=ch_)
+                yield id_, "\n\n".join(batch), metadata
                 batch = batch[-overlap:]
         if batch:
             id_ = f"{ch_}:{verse['v']-len(batch)+1}-{verse['v']}"  # type: ignore
-            yield id_, "\n\n".join(batch)
+            yield id_, "\n\n".join(batch), dict(ch=ch_)
 
 
 def embed_chunks(
@@ -303,11 +304,12 @@ def _build_verse_index(batches_per_request=20):
     3. Generate embeddings for each chunk.
     4. Store the chunks and their embeddings in a vector database."""
     corpus = Corpus()
-    ids, chunks_ = zip(*chunks(corpus, chunk_size=10, overlap=2))
+    ids, chunks_, metadata = zip(*chunks(corpus, chunk_size=10, overlap=2))
     start = datetime.now()
     for i in trange(0, len(chunks_), batches_per_request, leave=False):
         batch_chunks = list(chunks_[i : i + batches_per_request])
         batch_ids = list(ids[i : i + batches_per_request])
+        batch_metadata = list(metadata[i : i + batches_per_request])
         try:
             embeddings = embed_chunks(batch_chunks)
         except GoogleClientError as e:
@@ -317,7 +319,9 @@ def _build_verse_index(batches_per_request=20):
             start = datetime.now()
             embeddings = embed_chunks(batch_chunks)
         collection = corpus.verses_collection
-        collection.add(embeddings=embeddings, ids=batch_ids)
+        collection.upsert(
+            embeddings=embeddings, ids=batch_ids, metadatas=batch_metadata
+        )
 
 
 def _build_topic_index(batches_per_request=100):
@@ -341,7 +345,7 @@ def _build_topic_index(batches_per_request=100):
             start = datetime.now()
             embeddings = embed_chunks(batch_topics)
         collection = Corpus().topics_collection
-        collection.add(embeddings=embeddings, ids=batch_ids)
+        collection.upsert(embeddings=embeddings, ids=batch_ids)
 
 
 def _build_chapter_intro_index():
@@ -354,7 +358,7 @@ def _build_chapter_intro_index():
         for ch in corpus.quran:
             intro = ch["intro_en"]
             if intro:
-                id_ = f"{ch['ch']}:{ch['chapter_name']}"
+                id_ = f"{ch['ch']} - {ch['chapter_name']}"
                 batch.append(intro)
                 ids.append(id_)
                 if len(batch) == batches_per_request:
@@ -381,4 +385,4 @@ def _build_chapter_intro_index():
             start = datetime.now()
             embeddings = embed_chunks(chunks)
         collection = corpus.chapter_intros_collection
-        collection.add(embeddings=embeddings, ids=ids)
+        collection.upsert(embeddings=embeddings, ids=ids)

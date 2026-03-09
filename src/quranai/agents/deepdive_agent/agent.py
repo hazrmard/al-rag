@@ -46,16 +46,19 @@ def update_initial_state(key: str):
     return update_initial_state
 
 
-def conditionally_return_final_response(callback_context: CallbackContext):
-    status = callback_context.session.state.get("plan_feedback", "").strip()
-    should_stop = status == LOOP_COMPLETION_PHRASE
-    if should_stop:
-        final_answer = callback_context.state["plan"]
+def return_final_response(key: str):
+    def _return_final_response(callback_context: CallbackContext):
+        # status = callback_context.session.state.get("plan_feedback", "").strip()
+        # should_stop = status == LOOP_COMPLETION_PHRASE
+        # if should_stop:
+        final_answer = callback_context.state[key]
         logging.info(callback_context.state.to_dict())
         logging.info(
             f"In {callback_context.agent_name} returning final answer: {final_answer}"
         )
         return types.Content(parts=[types.Part(text=final_answer)], role="model")
+
+    return _return_final_response
 
 
 class CheckStatusAndEscalate(BaseAgent):
@@ -70,18 +73,15 @@ class CheckStatusAndEscalate(BaseAgent):
             yield Event(
                 author=self.name,
                 actions=EventActions(escalate=should_stop, skip_summarization=True),
-                content=types.Content(
-                    parts=[types.Part(text=final_answer)], role="model"
-                ),
+                # content=types.Content(
+                #     parts=[types.Part(text=final_answer)], role="model"
+                # ),
             )
         else:
             yield Event(
                 author=self.name,
                 actions=EventActions(escalate=should_stop, skip_summarization=True),
             )
-
-
-check_status_and_escalate = CheckStatusAndEscalate(name="CheckStatusAndEscalate")
 
 
 initial_plan_writer = Agent(
@@ -92,15 +92,29 @@ initial_plan_writer = Agent(
     instruction=f"""
         Use the provided tools to conduct meta-analysis of sources and formulate a research plan.
 
+        Use the information of the tools, and optionally results from the tools to create 
+        a rough research plan outline. Do not attempt to answer the question. Only write 
+        a research plan that will be executed later on.
+
+        The research plan should outline the main headers. Inside each header, it should have 
+        a brief plan. It should hint towards the tools to use and how to use them.
+
         Topic:
         ```
         {{query}}
         ```
         Important:
-        -  Write in imperative to-do list format.
         - Only output the plan. Do not add explanations or any other text.
         """,
-    tools=[tools.get_topics_for_query],
+    tools=[
+        tools.get_chapter_intro,
+        tools.get_chapter_intros_by_query,
+        tools.get_verses,
+        tools.get_verse_footnotes,
+        tools.get_verses_for_query,
+        tools.get_topics_for_query,
+        tools.get_verses_for_topic,
+    ],
     output_key="plan",
 )
 
@@ -112,7 +126,10 @@ planner_critic_in_loop = Agent(
     instruction=f"""
         Review the following research plan for the topic.
         If it is sufficient, respond *exactly* and *only* with {LOOP_COMPLETION_PHRASE}
-        If not, provide feedback on how to improve it.
+        If not, provide feedback on how to improve it. Use information about available tools 
+        to critique how best to use those tools to answer the question.
+        Do not attempt to answer the topic.
+
         Topic:
         ```
         {{query}}
@@ -122,7 +139,15 @@ planner_critic_in_loop = Agent(
         {{plan}}
         ```
         """,
-    tools=[],
+    tools=[
+        tools.get_chapter_intro,
+        tools.get_chapter_intros_by_query,
+        tools.get_verses,
+        tools.get_verse_footnotes,
+        tools.get_verses_for_query,
+        tools.get_topics_for_query,
+        tools.get_verses_for_topic,
+    ],
     output_key="plan_feedback",
 )
 
@@ -131,32 +156,45 @@ planner_in_loop = Agent(
     name="Plan_Writer",
     description="Iterate on the research plan given the query and feedback.",
     include_contents="none",
-    instruction=f"""
-        Use the provided tools to refine research plan for the research topic:
+    instruction="""
+        Use the provided tools to refine the initial research plan for the research topic:
         ```
-        {{query}}
+        {query}
         ```
         Current plan:
         ```
-        {{plan}}
+        {plan}
         ```
-        Feedback on current plan (if any):
+        Feedback on initial plan (if any):
         ```
-        {{plan_feedback}}
+        {plan_feedback}
         ```
         IMPORTANT:
-        - Write in imperative to-do list format.
         - Do not add explanations in your response.
+        - Do not attempt to answer the topic.
         """,
-    tools=[tools.get_topics_for_query],
+    tools=[
+        tools.get_chapter_intro,
+        tools.get_chapter_intros_by_query,
+        tools.get_verses,
+        tools.get_verse_footnotes,
+        tools.get_verses_for_query,
+        tools.get_topics_for_query,
+        tools.get_verses_for_topic,
+    ],
     output_key="plan",
 )
 
 planner_refinement_loop = LoopAgent(
     name="Planner_Refinement_Loop",
     description="Iteratively refine the research plan until it is sufficient.",
-    sub_agents=[planner_critic_in_loop, check_status_and_escalate, planner_in_loop],
+    sub_agents=[
+        planner_critic_in_loop,
+        CheckStatusAndEscalate(name="CheckStatusAndEscalate"),
+        planner_in_loop,
+    ],
     max_iterations=MAX_ITERATIONS,
+    after_agent_callback=return_final_response("plan"),
 )
 
 planner_agent = SequentialAgent(
@@ -173,31 +211,97 @@ planner_agent = SequentialAgent(
 synthesizer_in_loop = Agent(
     model="gemini-2.5-flash",
     name="Synthesizer",
-    description="Synthesize the research findings into a final answer with citations.",
-    instruction=(
-        "Use the provided tools to synthesize the research findings into a final answer with citations:\n\n"
-        "Plan: {plan}\n"
-    ),
-    tools=[],
+    include_contents="none",
+    description="Execute the research plan with the help of tools and write a report.",
+    instruction="""
+    You are a research assistant. Use the topic, research plan, and review (if any) to 
+    write or revise the answer.
+
+    IMPORTANT:
+    - All factual statements must be cited with the verse or footnote number.
+    - Verses are in the format ch:verse. Footnotes are in the format [ref], where
+      `ref` is a letter or a number.
+
+    Topic: {query}
+
+    Research Plan:
+
+    {plan}
+
+    Critique / Feedback:
+
+    {answer_feedback?}
+    """,
+    tools=[
+        tools.get_chapter_intro,
+        tools.get_chapter_intros_by_query,
+        tools.get_verses,
+        tools.get_verse_footnotes,
+        tools.get_verses_for_query,
+        tools.get_topics_for_query,
+        tools.get_verses_for_topic,
+    ],
     output_key="answer",
 )
 
 synthesizer_critic_in_loop = Agent(
     model="gemini-2.5-flash",
     name="Synthesizer_Critic",
+    include_contents="none",
     description="Review the synthesized answer.",
-    instruction=(
-        "Review the following synthesized answer with respect to the research plan. If it is sufficient, call the exit_loop tool. "
-        "If not, provide feedback on how to improve it. "
-        "Synthesized Answer: \n"
-        "```\n"
-        "{answer}"
-        "\n```\n"
-        "Research Plan: {plan}"
-    ),
-    tools=[exit_loop],
+    instruction=f"""
+    You are a research reviewer. Review the following research, given the initial query and 
+    research plan. Provide feedback in regards to completeness, sources, and quality of 
+    the response. You have access to the same tools as the research writer. They can be used to
+    suggest refinements.
+
+    The research may only have addressed a portion of the plan. Guide the writer through 
+    steps to improve the answer.
+
+    IMPORTANT:
+    - If the answer is adequate, respond *exactly* and *only* with {LOOP_COMPLETION_PHRASE}
+
+    Topic: {{query}}
+
+    Research Plan:
+
+    {{plan}}
+
+    Answer:
+
+    {{answer}}
+    """,
+    tools=[
+        tools.get_chapter_intro,
+        tools.get_chapter_intros_by_query,
+        tools.get_verses,
+        tools.get_verse_footnotes,
+        tools.get_verses_for_query,
+        tools.get_topics_for_query,
+        tools.get_verses_for_topic,
+    ],
     output_key="answer_feedback",
 )
 
+synthesizer_refinement_loop = LoopAgent(
+    name="Synthesizer_Refinement_Loop",
+    description="Iteratively refine the synthesized answer until it is sufficient.",
+    sub_agents=[
+        synthesizer_in_loop,
+        synthesizer_critic_in_loop,
+        CheckStatusAndEscalate(name="CheckStatusAndEscalate"),
+    ],
+    max_iterations=MAX_ITERATIONS,
+    after_agent_callback=return_final_response("answer"),
+)
 
-root_agent = planner_agent
+deepdive_agent = SequentialAgent(
+    name="DeepDive_Agent",
+    description="Write a research report on the topic. For addressing ambiguous or open-ended questions.",
+    sub_agents=[
+        planner_agent,
+        synthesizer_refinement_loop,
+    ],
+)
+
+root_agent = deepdive_agent
