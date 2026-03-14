@@ -1,9 +1,0 @@
-streamlit
-litellm
-chromadb
-python-dotenv
-jupyter
-jupytext
-numpy
-protobuf~=4.25.4
-pysqlite3-binary

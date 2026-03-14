@@ -6,9 +6,9 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.17.3
 #   kernelspec:
-#     display_name: Python 3 (ipykernel)
+#     display_name: quranai
 #     language: python
 #     name: python3
 # ---
@@ -19,13 +19,16 @@
 import os
 import re
 from pathlib import Path
-import numpy as np
-from dotenv import load_dotenv
-from litellm import embedding, completion, completion_cost
+import requests, json
+# import numpy as np
+# from litellm import embedding, completion, completion_cost
 import json
 from tqdm.autonotebook import trange, tqdm
+from dotenv import load_dotenv
 
-MODEL_NAME = "gpt-4o-mini"
+import quranai
+from quranai.utils import schema, list_data_files, get_data_file_path
+from quranai.quran.corpus import corpus_json
 
 load_dotenv("./.env", override=True);
 
@@ -33,115 +36,77 @@ load_dotenv("./.env", override=True);
 # ## Download
 
 # %%
-url = "https://api.openquran.com"
-intro_url = "/express/chapter/intro/{ch}"
-verses_url = "/express/chapter/{ch}:{start}-{end}"
+from quranai.quran.corpus import download_ch
+from quranai.utils import schema
 
-payload = {"en":False,"zk":False,"sc":False,"v5":True,"cn":False,"sp_en":False,"sp_ur":False,"ur":False,"ts":False,"fr":False,"es":False,"de":False,"it":False,"my":False,"f":1,"hover":0}
-
-# %%
-import requests, json
-
-
-# %%
-def get_ch(n=1, start=1, end=300):
-    vdata = []
-    for s in range(start, end, 10):
-        res=requests.post((url+verses_url).format(ch=n, start=s, end=s+10), json=payload)
-        data = json.loads(res.content)
-        if data == {'message': 'invalid request'}:
-            break
-        vdata.extend(data)
-    res = requests.get((url+intro_url).format(ch=n))
-    intro_data = json.loads(res.content)
-    return dict(**intro_data, verses=vdata)
-
+ch1 = download_ch(1)
+print(schema(ch1))
 
 # %%
 quran = {}
 for i in range(1, 115):
-    quran[i] = get_ch(i)
+    quran[i] = download_ch(i)
 
 # %%
-with open("./quran.json", "w") as f:
-    json.dump(quran, f)
+with open(get_data_file_path(corpus_json), "w") as f:
+    json.dump(corpus_json, f)
 
 # %% [markdown]
 # ## Parsing
 
 # %%
-with open('./quran.json', 'r') as f:
-    data = json.load(f)
-quran = {int(k): v for k,v in data.items()}
-
-
-# %%
-# Processing functions for text elements
-def sanitize_verse(s: str):
-    """Remove [ ] footnote markers and <> tags from text"""
-    square_brackets_pattern = r'\[[^\]]*\]'  # Matches anything inside square brackets
-    angle_brackets_pattern = r'<[^>]*>'      # Matches anything inside angle brackets
-    # Remove content inside square brackets
-    result = re.sub(square_brackets_pattern, '', s)
-    # Remove content inside angle brackets
-    result = re.sub(angle_brackets_pattern, '', result)
-    # Remove any extra spaces that may have been introduced
-    result = re.sub(r'\s+', ' ', result).strip()
-    return result
-def sanitize_topic(s: str):
-    return sanitize_verse(','.join(s.split(':')))
-
+from quranai.quran.corpus import (
+    sanitize_topic,
+    sanitize_verse,
+    load_corpus_into_memory,
+    get_referenced_verses_in_corpus,
+)
+from litellm import token_counter
 
 # %%
-def get_verses(ch: dict) -> dict[int, str]:
-    v = {}
-    for d in ch['verses']:
-        # v[d['v']] = sanitize_verse(' '.join(w['t'] for w in d['words'] if w['t'] is not None))
-        v[d['v']] = sanitize_verse(d['v5']['text'])
-    return v
-
+quran = load_corpus_into_memory()
 
 # %%
-def get_topics(q: dict=quran):
-    from collections import defaultdict
-    reverse = defaultdict(list, {})
-    t = set()
-    for ch in q.values():
-        for v in ch['verses']:
-            for topic in v['topics']:
-                t_ = sanitize_topic(topic['topic'])
-                t.add(t_)
-                reverse[t_].append('%d:%d'%(v['ch'], v['v']))
-    return sorted(list(t)), reverse
-# t, reverset = get_topics(quran)
-
+print(schema(quran))
 
 # %%
-verses = {i: get_verses(d) for i, d in quran.items()}
+from quranai.quran.corpus import get_topics
+
+t, r = get_topics(quran)
 
 # %%
-quran[1]['verses'][0]
+print(schema(quran[0]["verses"][4]))
 
 # %%
-verses[1]
-
-
-# %%
-def get_metadata(ch: dict) -> dict[int, dict[str, str]]:
-    m = {}
-    for d in ch['verses']:
-        m_ = dict(
-            ch=d['ch'],
-            v=d['v'],
-            topics='\n'.join(sanitize_topic(t['topic']) for t in d['topics']),
-            notes='\n'.join(n['note'] for n in d['v5']['notes'])
-        )
-        m[d['v']] = m_
-    return m
-
+quran[0]["verses"][4]
 
 # %%
-get_metadata(quran[1])
+verses = get_referenced_verses_in_corpus()
+
+# %%
+messages = [
+    dict(
+        role="system",
+        content=(
+            "You are an assistant expert in retrieving verses in context from "
+            "the Quran based on user query. You find excerpts that convey an idea. The "
+            "excerpts should be relevant to the query and provide a comprehensive understanding "
+            "of the topic at hand. Here is the entire Quran in `chapter:verse translation` format. "
+            " IMPORTANT: Only return references in chapter:verse or chapter:verse-verse format. "
+            " For example: `2:255,1:1-5`:\n\n"
+            "<Quran>\n"
+            + "\n".join(f"{ref} {text}" for ref, text in tuple(verses.items())[:3150])
+            + "\n\n</Quran>\n\n"
+        ),
+    ),
+    dict(
+        role="user",
+        content=("Mercy and forgiveness"),
+    ),
+]
+
+# %%
+token_counter(messages=messages)
 
 # %% [markdown]
 # ### DB
@@ -152,6 +117,7 @@ get_metadata(quran[1])
 # %%
 import chromadb
 from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+
 chroma_client = chromadb.PersistentClient()
 collection = chroma_client.get_or_create_collection(name="quran")
 
@@ -163,32 +129,35 @@ for c in trange(1, 115, leave=False):
 
     embed_strs = []
     for (i, v), (j, m) in zip(ch.items(), meta.items()):
-        assert i==j
+        assert i == j
         embed_str = f"{v}\n\nTOPICS:\n\n{m['topics']}"
         embed_strs.append(embed_str)
     embeddings = embed_fn(embed_strs)
 
     collection.upsert(
-        ids=['%d:%d'%(c,i) for i in ch.keys()],
+        ids=["%d:%d" % (c, i) for i in ch.keys()],
         embeddings=embeddings,
         documents=list(ch.values()),
-        metadatas=list(meta.values())
+        metadatas=list(meta.values()),
     )
 
 # %%
-r=collection.query(query_texts='actions of the people that disobeyed God', n_results=5)
+r = collection.query(
+    query_texts="actions of the people that disobeyed God", n_results=5
+)
 
 # %%
-r['metadatas'][0][0]
+r["metadatas"][0][0]
 
 # %%
-collection.get('53:53')
+collection.get("53:53")
 
 # %% [markdown]
 # #### Topics
 
 # %%
 import chromadb
+
 chroma_client = chromadb.PersistentClient()
 topics_collection = chroma_client.get_or_create_collection(name="quran_topics")
 
@@ -199,18 +168,17 @@ topics_collection = chroma_client.get_or_create_collection(name="quran_topics")
 
 # %%
 def topic_metadata_to_database(topics, collection):
-    collection.upsert(
-        ids=topics,
-        documents=topics
-    )
+    collection.upsert(ids=topics, documents=topics)
+
+
 topics, reverse_topics = get_topics(quran)
 topic_metadata_to_database(topics, topics_collection)
 
 # %%
-r = c['quran_topics'].query(query_texts='repentence, forgiveness', n_results=10)
+r = c["quran_topics"].query(query_texts="repentence, forgiveness", n_results=10)
 
 # %%
-r['documents'][0]
+r["documents"][0]
 
 # %% [markdown]
 # ### Querying
@@ -221,22 +189,92 @@ from framework import get_collections, find, themes
 c = get_collections()
 
 # %%
-print(themes('forgiveness', c['quran_topics']))
+print(themes("forgiveness", c["quran_topics"]))
 
 # %%
-print(find('What is forgiveness?', c['quran']))
+print(find("What is forgiveness?", c["quran"]))
 
 # %% [markdown]
-# ### LLM
+# ## LLM
+
+# %% [markdown]
+# ### Custom Agent
 
 # %%
-from framework import system_prompt as prompt, router, find, get_collection
+from quranai.agent import CustomBaseAgent
+from quranai.quran.agent import CustomQuranAgent
+from quranai.llm import LLM, tool_annotator
+from quranai.utils import extract_tool_results, tool_annotator, AgentState
+import cProfile, pstats, io, os
+
+print(os.getenv("OPENAI_MODEL_NAME"))
 
 # %%
-res=completion(model=MODEL_NAME, temperature=0, messages=[{"role": "system", "content":p}])
+llm = LLM(model_name="gpt-4.1-mini")
+quran_assistant = CustomQuranAgent(name="quran_assistant")
+
+agent = CustomBaseAgent(
+    model=llm,
+    tools=[],
+    agents=[quran_assistant],
+)
 
 # %%
-res['choices'][0]['message'].content
+quran_assistant.state
 
 # %%
-print(router('FIND: Moses'))
+state = agent.state
+state = agent("Who are you? Be short.", state=state)
+print(state)
+
+# %%
+print(agent.run("What does the Quran say about making friends with disbelievers?"))
+
+# %%
+extract_tool_results(quran_assistant.messages)
+
+# %%
+agent = CustomBaseAgent(model=llm, tools=[calculator])
+agent.run("What is the result of this calculation: 12345678 / 43567?")
+# agent.run("What tools do you have? List them.")
+
+# %%
+agent = CustomQuranAgent()
+agent.run("What does the Quran say about making friends with disbelievers?")
+
+# %%
+from quranai.quran.agent import get_verses
+
+get_verses(4, 62, 63)
+
+# %%
+resp.usage
+
+# %%
+with cProfile.Profile() as pr:
+    res = qagent.run("What does 1:1 say?", max_steps=3, return_full_result=True)
+s = io.StringIO()
+sortby = pstats.SortKey.CUMULATIVE
+ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+ps.print_stats()
+print(s.getvalue())
+
+# %% [markdown]
+# ### Google ADK
+
+# %% [markdown]
+#
+
+# %% [markdown]
+# ## Index
+
+# %%
+from quranai.quran.corpus import (
+    Corpus,
+    _prepare_verse_for_embedding,
+    _prepare_verse_for_display,
+    embed_chunks,
+)
+
+# %%
+c = Corpus()
