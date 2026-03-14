@@ -10,10 +10,11 @@ logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
 )
 
+MODEL_NAME = "gemini-3-flash-preview"
 
 # Root coordinator agent. It delegates deep-dive queries to the `DeepDive` sub-agent.
 root_agent = Agent(
-    model="gemini-2.5-flash",
+    model=MODEL_NAME,
     name="root_agent",
     description="A helpful assistant for user questions about the Quran.",
     instruction="""

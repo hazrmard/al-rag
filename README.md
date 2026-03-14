@@ -21,6 +21,12 @@ To run the web interface:
 uv run adk web --log_level DEBUG --port 8000 src/quranai/agents/
 ```
 
+To run the API server:
+
+```
+adk api_server src/quranai/agents/
+```
+
 `src/scripts/` defines utility scripts to build indices and other workflows not part of runtime. Run them using:
 
 ```

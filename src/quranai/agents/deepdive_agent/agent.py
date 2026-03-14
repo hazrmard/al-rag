@@ -27,6 +27,7 @@ from quranai.quran import tools
 
 MAX_ITERATIONS = 2
 LOOP_COMPLETION_PHRASE = "EXIT_LOOP"
+MODEL_NAME = "gemini-3-flash-preview"
 
 
 # --- Planning agent ---
@@ -85,7 +86,7 @@ class CheckStatusAndEscalate(BaseAgent):
 
 
 initial_plan_writer = Agent(
-    model="gemini-2.5-flash",
+    model=MODEL_NAME,
     name="Initial_Plan_Writer",
     description="Make initial plan for the research topic.",
     include_contents="none",
@@ -119,7 +120,7 @@ initial_plan_writer = Agent(
 )
 
 planner_critic_in_loop = Agent(
-    model="gemini-2.5-flash",
+    model=MODEL_NAME,
     name="Planner_Critic",
     description="Review the plan created by the planner agent.",
     include_contents="none",
@@ -152,7 +153,7 @@ planner_critic_in_loop = Agent(
 )
 
 planner_in_loop = Agent(
-    model="gemini-2.5-flash",
+    model=MODEL_NAME,
     name="Plan_Writer",
     description="Iterate on the research plan given the query and feedback.",
     include_contents="none",
@@ -209,7 +210,7 @@ planner_agent = SequentialAgent(
 
 # --- Synthesis agent ---
 synthesizer_in_loop = Agent(
-    model="gemini-2.5-flash",
+    model=MODEL_NAME,
     name="Synthesizer",
     include_contents="none",
     description="Execute the research plan with the help of tools and write a report.",
@@ -245,7 +246,7 @@ synthesizer_in_loop = Agent(
 )
 
 synthesizer_critic_in_loop = Agent(
-    model="gemini-2.5-flash",
+    model=MODEL_NAME,
     name="Synthesizer_Critic",
     include_contents="none",
     description="Review the synthesized answer.",
