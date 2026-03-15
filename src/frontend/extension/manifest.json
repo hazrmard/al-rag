@@ -15,7 +15,17 @@
     "sidePanel",
     "scripting",
     "tabs",
-    "activeTab"
+    "activeTab",
+    "storage"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.alislam.org/quran/app/*",
+        "https://alislam.org/quran/app/*"
+      ],
+      "js": ["content.js"]
+    }
   ],
   "side_panel": {
     "default_path": "index.html"

@@ -8,17 +8,55 @@
   let messages = [];
   let userInput = '';
   let messagesDiv;
+  let contextVerses = [];
+  let lastMessagesLength = 0;
 
   function addMessage(text, sender) {
     messages = [...messages, { text, sender }];
   }
 
-  $: if (messages && messagesDiv) {
-    // Scroll to bottom when messages change
-    setTimeout(() => {
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }, 0);
+  $: if (messagesDiv && messages.length > lastMessagesLength) {
+    // Only scroll if the user is already near the bottom or if it's a new message they just sent.
+    // This prevents the scroll from being "stuck" at the bottom when they try to scroll up.
+    const isAtBottom = messagesDiv.scrollTop + messagesDiv.clientHeight >= messagesDiv.scrollHeight - 50;
+    const isUserMessage = messages.length > 0 && messages[messages.length - 1].sender === 'user';
+    
+    if (lastMessagesLength === 0 || isUserMessage || isAtBottom) {
+      setTimeout(() => {
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      }, 0);
+    }
+    lastMessagesLength = messages.length;
   }
+
+  onMount(() => {
+    addMessage('Welcome! Ask me anything about the Quran.', 'agent');
+
+    // Connect to background script to signal the side panel is open
+    let port;
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.connect) {
+      port = chrome.runtime.connect({ name: 'quranai-sidepanel' });
+    }
+
+    // Listen for messages from the content script
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+      chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.action === 'add_to_context') {
+          if (!contextVerses.includes(request.verse)) {
+            contextVerses = [...contextVerses, request.verse];
+          }
+        } else if (request.action === 'explain_verse') {
+          const verse = request.verse;
+          userInput = `Explain verse ${verse}`;
+          sendMessage();
+        }
+      });
+    }
+
+    return () => {
+      if (port) port.disconnect();
+    };
+  });
 
   async function ensureSession() {
     let sessionId = getSessionId();
@@ -30,16 +68,26 @@
     return sessionId;
   }
 
+  function removeFromContext(verse) {
+    contextVerses = contextVerses.filter(v => v !== verse);
+  }
+
   async function sendMessage() {
     const text = userInput.trim();
     if (!text) return;
+
+    // Prepend context if any
+    let fullText = text;
+    if (contextVerses.length > 0) {
+      fullText = `Context: ${contextVerses.join(', ')}\n\n${text}`;
+    }
 
     userInput = '';
     addMessage(text, 'user');
 
     try {
       const sessionId = await ensureSession();
-      const result = await runAgent(APP_NAME, USER_ID, sessionId, text);
+      const result = await runAgent(APP_NAME, USER_ID, sessionId, fullText);
       
       let agentResponse = "No response received.";
       if (Array.isArray(result)) {
@@ -67,10 +115,6 @@
       sendMessage();
     }
   }
-
-  onMount(() => {
-    addMessage('Welcome! Ask me anything about the Quran.', 'agent');
-  });
 </script>
 
 <style>
@@ -89,6 +133,7 @@
     border: 1px solid #ccc;
     margin-bottom: 10px;
     padding: 5px;
+    min-height: 0; /* Ensures container can shrink properly in flexbox for stable scrolling */
   }
   .message {
     margin-bottom: 8px;
@@ -100,6 +145,32 @@
   .agent {
     text-align: left;
     color: green;
+  }
+  .context-area {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 10px;
+    padding: 5px;
+    border: 1px dashed #ccc;
+    min-height: 30px;
+  }
+  .badge {
+    background: #e0e0e0;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .badge button {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-weight: bold;
+    color: #666;
   }
   .input-area {
     display: flex;
@@ -121,6 +192,19 @@
     </div>
   {/each}
 </div>
+
+<div class="context-area">
+  {#if contextVerses.length === 0}
+    <span style="color: #999; font-size: 0.8em;">No verses in context</span>
+  {/if}
+  {#each contextVerses as verse}
+    <div class="badge">
+      {verse}
+      <button on:click={() => removeFromContext(verse)}>×</button>
+    </div>
+  {/each}
+</div>
+
 <div class="input-area">
   <input
     type="text"
