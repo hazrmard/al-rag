@@ -4,10 +4,35 @@
   "version": "1.0",
   "manifest_version": 3,
   "action": {
-    "default_popup": "index.html",
     "default_icon": "main.png"
   },
   "host_permissions": [
-    "http://localhost:8000/*"
-  ]
+    "http://localhost:8000/*",
+    "https://*/*",
+    "http://*/*"
+  ],
+  "permissions": [
+    "sidePanel",
+    "scripting",
+    "tabs",
+    "activeTab"
+  ],
+  "side_panel": {
+    "default_path": "index.html"
+  },
+  "sidebar_action": {
+    "default_panel": "index.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "quranai@example.com",
+      "strict_min_version": "109.0"
+    }
+  }
 }
