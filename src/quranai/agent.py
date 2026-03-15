@@ -5,7 +5,8 @@ from typing import Any, Callable, Iterable, Optional, TypedDict
 
 from litellm import supports_reasoning  # pyright: ignore[reportPrivateImportUsage]
 from litellm import LiteLLM
-from smolagents import LiteLLMModel, ToolCallingAgent, tool
+
+# from smolagents import LiteLLMModel, ToolCallingAgent, tool
 
 from quranai.llm import LLM
 from quranai.utils import tool_annotator, AgentState

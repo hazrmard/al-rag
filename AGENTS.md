@@ -37,6 +37,8 @@ The agent has tools available for simple questions. It also has sub-agents to do
 
 The agents can be exposed by an API server. Documentation is at https://google.github.io/adk-docs/runtime/api-server/
 
+When the API server is running, the Swagger UI docs are available @ http://localhost:8000/doc
+
 #### CLI
 
 The agent can run in a cli. See https://google.github.io/adk-docs/runtime/command-line/
@@ -44,6 +46,10 @@ The agent can run in a cli. See https://google.github.io/adk-docs/runtime/comman
 ### Frontend
 
 Develop frontend code in src/frontend/
+
+Put shared code in src/frontend/shared/
+
+Use Rollup to bundle shared dependencies.
 
 #### Firefox Extension
 

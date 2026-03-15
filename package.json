@@ -1,0 +1,10 @@
+{
+  "name": "quranai-frontend",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "rollup -c rollup.config.mjs"
+  },
+  "devDependencies": {
+    "rollup": "^4.59.0"
+  }
+}

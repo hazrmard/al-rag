@@ -1,0 +1,13 @@
+{
+  "name": "QAI",
+  "description": "Base Level Extension",
+  "version": "1.0",
+  "manifest_version": 3,
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": "main.png"
+  },
+  "host_permissions": [
+    "http://localhost:8000/*"
+  ]
+}

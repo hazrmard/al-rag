@@ -35,10 +35,7 @@ dict:                      # mapping of topic to list of verse references in the
 import re
 from typing import Optional
 
-from quranai.llm import LLM
-from quranai.utils import list_data_files, get_data_file_path
 from quranai.quran.corpus import Corpus, sanitize_topic, embed_chunks
-import yaml
 
 
 corpus = Corpus()
