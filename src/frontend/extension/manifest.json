@@ -8,8 +8,8 @@
   },
   "host_permissions": [
     "http://localhost:8000/*",
-    "https://*/*",
-    "http://*/*"
+    "https://*.alislam.org/*",
+    "https://alislam.org/*"
   ],
   "permissions": [
     "sidePanel",
