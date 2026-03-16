@@ -298,7 +298,7 @@ synthesizer_refinement_loop = LoopAgent(
 
 deepdive_agent = SequentialAgent(
     name="DeepDive_Agent",
-    description="Write a research report on the topic. For addressing ambiguous or open-ended questions.",
+    description="Write a research report on the topic. The topic must be an instruction or an open ended question, optionally with hints.",
     sub_agents=[
         planner_agent,
         synthesizer_refinement_loop,
