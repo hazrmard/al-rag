@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { createSession, getSessionId, runAgent } from '../shared/lib.js';
+  import Message from './Message.svelte';
 
   const APP_NAME = 'agent';
   const USER_ID = 'extension-user';
@@ -135,17 +136,6 @@
     padding: 5px;
     min-height: 0; /* Ensures container can shrink properly in flexbox for stable scrolling */
   }
-  .message {
-    margin-bottom: 8px;
-  }
-  .user {
-    text-align: right;
-    color: blue;
-  }
-  .agent {
-    text-align: left;
-    color: green;
-  }
   .context-area {
     display: flex;
     flex-wrap: wrap;
@@ -187,9 +177,7 @@
 <h3>QuranAI Chat</h3>
 <div class="messages-container" bind:this={messagesDiv}>
   {#each messages as msg}
-    <div class="message {msg.sender}">
-      {msg.sender === 'user' ? 'You' : 'AI'}: {msg.text}
-    </div>
+    <Message text={msg.text} sender={msg.sender} />
   {/each}
 </div>
 
