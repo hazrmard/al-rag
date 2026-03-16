@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { createSession, getSessionId, runAgent } from '../shared/lib.js';
+  import { createSession, getSessionId, runAgent, storage } from '../shared/lib.js';
   import Message from './Message.svelte';
 
   const APP_NAME = 'agent';
@@ -11,18 +11,20 @@
   let messagesDiv;
   let contextVerses = [];
   let lastMessagesLength = 0;
+  let isLoading = false;
 
-  function addMessage(text, sender) {
-    messages = [...messages, { text, sender }];
+  async function addMessage(text, sender, events = []) {
+    messages = [...messages, { text, sender, events }];
+    await storage.set('messages', messages);
   }
 
-  $: if (messagesDiv && messages.length > lastMessagesLength) {
+  $: if (messagesDiv && (messages.length > lastMessagesLength || isLoading)) {
     // Only scroll if the user is already near the bottom or if it's a new message they just sent.
     // This prevents the scroll from being "stuck" at the bottom when they try to scroll up.
     const isAtBottom = messagesDiv.scrollTop + messagesDiv.clientHeight >= messagesDiv.scrollHeight - 50;
     const isUserMessage = messages.length > 0 && messages[messages.length - 1].sender === 'user';
     
-    if (lastMessagesLength === 0 || isUserMessage || isAtBottom) {
+    if (lastMessagesLength === 0 || isUserMessage || isAtBottom || isLoading) {
       setTimeout(() => {
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
       }, 0);
@@ -30,8 +32,19 @@
     lastMessagesLength = messages.length;
   }
 
-  onMount(() => {
-    addMessage('Welcome! Ask me anything about the Quran.', 'agent');
+  onMount(async () => {
+    // Load persisted state
+    const savedMessages = await storage.get('messages');
+    if (savedMessages && Array.isArray(savedMessages)) {
+      messages = savedMessages;
+    } else {
+      addMessage('Welcome! Ask me anything about the Quran.', 'agent');
+    }
+
+    const savedContext = await storage.get('contextVerses');
+    if (savedContext && Array.isArray(savedContext)) {
+      contextVerses = savedContext;
+    }
 
     // Connect to background script to signal the side panel is open
     let port;
@@ -45,6 +58,7 @@
         if (request.action === 'add_to_context') {
           if (!contextVerses.includes(request.verse)) {
             contextVerses = [...contextVerses, request.verse];
+            storage.set('contextVerses', contextVerses);
           }
         } else if (request.action === 'explain_verse') {
           const verse = request.verse;
@@ -60,17 +74,17 @@
   });
 
   async function ensureSession() {
-    let sessionId = getSessionId();
+    let sessionId = await getSessionId();
     if (!sessionId) {
-      addMessage('Creating session...', 'agent');
       const session = await createSession(APP_NAME, USER_ID);
       sessionId = session.id;
     }
     return sessionId;
   }
 
-  function removeFromContext(verse) {
+  async function removeFromContext(verse) {
     contextVerses = contextVerses.filter(v => v !== verse);
+    await storage.set('contextVerses', contextVerses);
   }
 
   async function sendMessage() {
@@ -84,31 +98,46 @@
     }
 
     userInput = '';
-    addMessage(text, 'user');
+    await addMessage(text, 'user');
+    isLoading = true;
 
     try {
       const sessionId = await ensureSession();
       const result = await runAgent(APP_NAME, USER_ID, sessionId, fullText);
       
       let agentResponse = "No response received.";
+      let events = [];
       if (Array.isArray(result)) {
+        events = result;
         for (let i = result.length - 1; i >= 0; i--) {
           const event = result[i];
-          const text = event.content?.parts?.[0]?.text;
-          if (text) {
-            agentResponse = text;
+          const textPart = event.content?.parts?.find(p => p.text)?.text;
+          if (textPart) {
+            agentResponse = textPart;
             break;
           }
         }
       } else if (result.result?.parts?.[0]?.text) {
         agentResponse = result.result.parts[0].text;
+        events = [result];
       }
       
-      addMessage(agentResponse, 'agent');
+      await addMessage(agentResponse, 'agent', events);
     } catch (err) {
       console.error(err);
-      addMessage(`Error: ${err.message}`, 'agent');
+      await addMessage(`Error: ${err.message}`, 'agent');
+    } finally {
+      isLoading = false;
     }
+  }
+
+  async function startNewChat() {
+    messages = [];
+    contextVerses = [];
+    await storage.remove('messages');
+    await storage.remove('contextVerses');
+    await storage.remove('sessionId');
+    await addMessage('Welcome! Ask me anything about the Quran.', 'agent');
   }
 
   function handleKeypress(e) {
@@ -127,6 +156,23 @@
     margin: 0;
     padding: 10px;
     box-sizing: border-box;
+  }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+  .header h3 {
+    margin: 0;
+  }
+  .clear-btn {
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 0.8em;
+    cursor: pointer;
+    text-decoration: underline;
   }
   .messages-container {
     flex: 1;
@@ -169,16 +215,47 @@
     flex: 1;
     padding: 5px;
   }
-  button {
+  .send-btn {
     padding: 5px 10px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+  }
+  .send-btn:hover {
+    background-color: #0056b3;
+  }
+  .loading-bubble {
+    align-self: flex-start;
+    background-color: #e9ecef;
+    color: #888;
+    padding: 8px 12px;
+    border-radius: 15px;
+    border-bottom-left-radius: 2px;
+    font-size: 0.9em;
+    font-style: italic;
+    margin-bottom: 10px;
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
   }
 </style>
 
-<h3>QuranAI Chat</h3>
+<div class="header">
+  <h3>QuranAI Chat</h3>
+  <button class="clear-btn" on:click={startNewChat}>New Chat</button>
+</div>
+
 <div class="messages-container" bind:this={messagesDiv}>
   {#each messages as msg}
-    <Message text={msg.text} sender={msg.sender} />
+    <Message text={msg.text} sender={msg.sender} events={msg.events} />
   {/each}
+  {#if isLoading}
+    <div class="loading-bubble">Thinking...</div>
+  {/if}
 </div>
 
 <div class="context-area">
@@ -200,5 +277,5 @@
     on:keypress={handleKeypress}
     placeholder="Ask a question..."
   />
-  <button on:click={sendMessage}>Send</button>
+  <button class="send-btn" on:click={sendMessage}>Send</button>
 </div>
