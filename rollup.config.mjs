@@ -3,8 +3,14 @@ import commonjs from '@rollup/plugin-commonjs';
 import resolve from '@rollup/plugin-node-resolve';
 import terser from '@rollup/plugin-terser';
 import css from 'rollup-plugin-css-only';
+import replace from '@rollup/plugin-replace';
+import 'dotenv/config';
 
 const production = !process.env.ROLLUP_WATCH;
+const apiBaseUrl = production ? (process.env.QURANAI_API_BASE_URL || 'http://localhost:8000') : 'http://localhost:8000';
+
+console.log(`Building for ${production ? 'production' : 'development'}...`);
+console.log(`API_BASE_URL: ${apiBaseUrl}`);
 
 export default [
   // Bundle for Extension
@@ -17,6 +23,12 @@ export default [
       file: 'src/frontend/extension/bundle.js'
     },
     plugins: [
+      replace({
+        preventAssignment: true,
+        values: {
+          '__QURANAI_API_BASE_URL__': JSON.stringify(production ? (process.env.QURANAI_API_BASE_URL || 'http://localhost:8000') : 'http://localhost:8000')
+        }
+      }),
       svelte({
         compilerOptions: {
           // enable run-time checks when not in production
@@ -56,6 +68,12 @@ export default [
       file: 'src/frontend/app/bundle.js'
     },
     plugins: [
+      replace({
+        preventAssignment: true,
+        values: {
+          '__QURANAI_API_BASE_URL__': JSON.stringify(production ? (process.env.QURANAI_API_BASE_URL || 'http://localhost:8000') : 'http://localhost:8000')
+        }
+      }),
       svelte({
         compilerOptions: {
           dev: !production

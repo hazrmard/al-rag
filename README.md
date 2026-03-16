@@ -35,3 +35,8 @@ uv run src/scripts/...
 
 ## Deployment
 
+
+### Extension
+
+The extension makes calls to the API server. To deploy server-side, run the api server command.
+

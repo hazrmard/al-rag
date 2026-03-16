@@ -2,7 +2,7 @@
  * Shared library for interacting with the QuranAI API.
  */
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = __QURANAI_API_BASE_URL__;
 
 /**
  * Helper for data persistence.
