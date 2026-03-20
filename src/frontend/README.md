@@ -45,3 +45,13 @@ To start development mode with live reloading:
 ```bash
 npm run dev
 ```
+
+### Packaging for Review
+
+To package the extension source code for browser extension review (e.g., for the Chrome Web Store or Firefox Add-ons), run the following script from the project root:
+
+```bash
+./build_ext_source.sh
+```
+
+This will create a `quranai-ext-source.zip` file containing all necessary source files and configuration, excluding build artifacts and dependencies.
