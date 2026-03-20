@@ -1,18 +1,6 @@
 // src/frontend/extension/background.js
 
-const ALLOWED_ORIGINS = [
-  'https://alislam.org',
-  'https://www.alislam.org',
-  'chrome://extensions',
-  'about:debugging'
-];
-
 let isSidePanelOpen = false;
-
-function isAllowed(url) {
-  if (!url) return false;
-  return ALLOWED_ORIGINS.some(origin => url.startsWith(origin));
-}
 
 // Chrome side panel behavior: open on click
 if (typeof chrome !== 'undefined' && chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
@@ -71,32 +59,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// Tab status management
-async function updateActionState(tabId, url) {
-  if (isAllowed(url)) {
-    await chrome.action.enable(tabId);
-  } else {
-    await chrome.action.disable(tabId);
-  }
-}
-
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' || changeInfo.url) {
-    updateActionState(tabId, tab.url);
-  }
-});
-
-chrome.tabs.onActivated.addListener(async (activeInfo) => {
-  const tab = await chrome.tabs.get(activeInfo.tabId);
-  updateActionState(activeInfo.tabId, tab.url);
-});
-
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({ isSidePanelOpen: false });
-  const tabs = await chrome.tabs.query({});
-  for (const tab of tabs) {
-    updateActionState(tab.id, tab.url);
-  }
 });
 
 console.log("QuranAI background script initialized.");

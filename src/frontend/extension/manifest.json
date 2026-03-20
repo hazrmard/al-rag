@@ -1,21 +1,17 @@
 {
-  "name": "QAI",
+  "name": "QuranAI",
   "description": "Base Level Extension",
-  "version": "1.0",
+  "version": "1.2",
   "manifest_version": 3,
   "action": {
     "default_icon": "main.png"
   },
   "host_permissions": [
-    "http://localhost:8000/*",
     "https://*.alislam.org/*",
     "https://alislam.org/*"
   ],
   "permissions": [
     "sidePanel",
-    "scripting",
-    "tabs",
-    "activeTab",
     "storage"
   ],
   "content_scripts": [

@@ -21,6 +21,9 @@ node_modules
 dist
 dist-ssr
 *.local
+*.zip
+quranai-extension.zip
+quranai-ext-source.zip
 
 # Editor directories and files
 .vscode/*
