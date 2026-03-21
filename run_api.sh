@@ -8,4 +8,4 @@ ALLOW_ORIGINS="*"
 
 echo "Starting API server with CORS enabled for: $ALLOW_ORIGINS"
 
-uv run adk api_server src/quranai/agents/ --allow_origins "$ALLOW_ORIGINS" --port 8000Keep
+uv run adk api_server src/quranai/agents/ --allow_origins "$ALLOW_ORIGINS" --port 8000
