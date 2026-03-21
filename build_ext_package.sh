@@ -4,7 +4,7 @@
 # This runs the build process and zips the final assets required for the Chrome Web Store or Firefox Add-ons.
 
 # The name of the output zip file
-ZIP_NAME="quranai-extension.zip"
+ZIP_NAME="public/quranai-extension.zip"
 
 # Clean up any existing zip
 rm -f "$ZIP_NAME"
@@ -39,7 +39,7 @@ echo "Packaging extension into $ZIP_NAME..."
 # - *.map (sourcemaps, usually not needed for final store uploads unless requested)
 # - .DS_Store (macOS junk)
 
-(cd src/frontend/extension && zip -r "../../$ZIP_NAME" \
+(cd src/frontend/extension && zip -r "../../../$ZIP_NAME" \
   manifest.json \
   index.html \
   bundle.js \

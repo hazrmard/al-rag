@@ -4,7 +4,7 @@
 # This zips the necessary source files while excluding build artifacts.
 
 # The name of the output zip file
-ZIP_NAME="quranai-ext-source.zip"
+ZIP_NAME="public/quranai-ext-source.zip"
 
 # Clean up any existing zip
 rm -f "$ZIP_NAME"
