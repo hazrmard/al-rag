@@ -6,7 +6,6 @@ __pycache__/
 .venv/
 .gradio/
 .adk/
-*.chroma/
 public/
 
 # Logs

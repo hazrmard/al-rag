@@ -8,7 +8,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.17.3
 #   kernelspec:
-#     display_name: quranai
+#     display_name: Python 3 (ipykernel)
 #     language: python
 #     name: python3
 # ---
@@ -51,7 +51,7 @@ for i in range(1, 115):
 with open(get_data_file_path(corpus_json), "w") as f:
     json.dump(corpus_json, f)
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Parsing
 
 # %%
@@ -195,9 +195,30 @@ print(themes("forgiveness", c["quran_topics"]))
 print(find("What is forgiveness?", c["quran"]))
 
 # %% [markdown]
-# ## LLM
+# ## Tools
+
+# %%
+from quranai.quran import tools, corpus
+
+tools.search_verses_semantically("god")
+
+# %%
+col = corpus.Corpus().topics_collection
+
+# %%
+emb = corpus.embed_chunks(["attributes of allah"], mode="RETRIEVAL_QUERY")
+
+# %%
+import numpy as np
+col.query(np.asarray(emb))
+
+# %%
+col.count()
 
 # %% [markdown]
+# ## LLM
+
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ### Custom Agent
 
 # %%
@@ -264,17 +285,3 @@ print(s.getvalue())
 
 # %% [markdown]
 #
-
-# %% [markdown]
-# ## Index
-
-# %%
-from quranai.quran.corpus import (
-    Corpus,
-    _prepare_verse_for_embedding,
-    _prepare_verse_for_display,
-    embed_chunks,
-)
-
-# %%
-c = Corpus()

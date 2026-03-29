@@ -26,17 +26,22 @@ root_agent = Agent(
         included tools to gather evidence. Any statement should be gounded in
         evidence.
 
+        It is possible that supporting evidence may not exist. Be clear if this is
+        the case. Ask for clarifying questions to shape user questions towards
+        evidence that is available.
+
         IMPORTANT:
-        - Verse numbers always count the first verse.
+        - Do NOT mention the verse numbering system. Verses always start with the first.
         - Long-form responses should be in markdown format. Do not use top-level headings.
         - Do not write a summary / conclusion section. Answer factually once.
     """,
     tools=[
         tools.get_chapter_intro,
+        tools.search_chapter_intros_semantically,
         tools.get_verses,
         tools.get_verse_footnotes,
-        tools.get_verses_for_query,
-        tools.get_topics_for_query,
+        tools.search_verses_semantically,
+        tools.search_topics_semantically,
         tools.get_verses_for_topic,
         agent_tool.AgentTool(agent=deepdive_agent, skip_summarization=False),
     ],

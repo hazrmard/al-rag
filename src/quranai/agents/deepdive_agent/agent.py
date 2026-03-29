@@ -90,15 +90,22 @@ initial_plan_writer = Agent(
     name="Initial_Plan_Writer",
     description="Make initial plan for the research topic.",
     include_contents="none",
-    instruction=f"""
+    instruction=f"""You are a research assistant skilled in religious scripture analysis.
         Use the provided tools to conduct meta-analysis of sources and formulate a research plan.
 
-        Use the information of the tools, and optionally results from the tools to create 
-        a rough research plan outline. Do not attempt to answer the question. Only write 
+        Use your knowledge of the tools, and optionally results from the tools, to create 
+        a research plan outline. Do not attempt to answer the question. Only write 
         a research plan that will be executed later on.
 
+        The research plan synthesizes a thesis based on the topic, and then outlines how
+        the answer may be approached.
+
         The research plan should outline the main headers. Inside each header, it should have 
-        a brief plan. It should hint towards the tools to use and how to use them.
+        a brief plan. The plan should scope the topics to analyze, the tools to use, and
+        queries to make into the corpus.
+
+        It is possible that a thesis may not have supporting evidence from the meta-knowledge
+        of tools, and potentially tool results. Indicate that clearly.
 
         Topic:
         ```
@@ -109,11 +116,11 @@ initial_plan_writer = Agent(
         """,
     tools=[
         tools.get_chapter_intro,
-        tools.get_chapter_intros_by_query,
+        tools.search_chapter_intros_semantically,
         tools.get_verses,
         tools.get_verse_footnotes,
-        tools.get_verses_for_query,
-        tools.get_topics_for_query,
+        tools.search_verses_semantically,
+        tools.search_topics_semantically,
         tools.get_verses_for_topic,
     ],
     output_key="plan",
@@ -142,11 +149,11 @@ planner_critic_in_loop = Agent(
         """,
     tools=[
         tools.get_chapter_intro,
-        tools.get_chapter_intros_by_query,
+        tools.search_chapter_intros_semantically,
         tools.get_verses,
         tools.get_verse_footnotes,
-        tools.get_verses_for_query,
-        tools.get_topics_for_query,
+        tools.search_verses_semantically,
+        tools.search_topics_semantically,
         tools.get_verses_for_topic,
     ],
     output_key="plan_feedback",
@@ -176,11 +183,11 @@ planner_in_loop = Agent(
         """,
     tools=[
         tools.get_chapter_intro,
-        tools.get_chapter_intros_by_query,
+        tools.search_chapter_intros_semantically,
         tools.get_verses,
         tools.get_verse_footnotes,
-        tools.get_verses_for_query,
-        tools.get_topics_for_query,
+        tools.search_verses_semantically,
+        tools.search_topics_semantically,
         tools.get_verses_for_topic,
     ],
     output_key="plan",
@@ -215,8 +222,9 @@ synthesizer_in_loop = Agent(
     include_contents="none",
     description="Execute the research plan with the help of tools and write a report.",
     instruction="""
-    You are a research assistant. Use the topic, research plan, and review (if any) to 
-    write or revise the answer.
+    You are a research assistant for religious scripture. Use the topic, research plan, 
+    and review (if any) to write or revise the answer. Cross reference tools to gather
+    thorough evidence to substantiate the analysis.
 
     IMPORTANT:
     - All factual statements must be cited with the verse or footnote number.
@@ -235,11 +243,11 @@ synthesizer_in_loop = Agent(
     """,
     tools=[
         tools.get_chapter_intro,
-        tools.get_chapter_intros_by_query,
+        tools.search_chapter_intros_semantically,
         tools.get_verses,
         tools.get_verse_footnotes,
-        tools.get_verses_for_query,
-        tools.get_topics_for_query,
+        tools.search_verses_semantically,
+        tools.search_topics_semantically,
         tools.get_verses_for_topic,
     ],
     output_key="answer",
@@ -251,10 +259,10 @@ synthesizer_critic_in_loop = Agent(
     include_contents="none",
     description="Review the synthesized answer.",
     instruction=f"""
-    You are a research reviewer. Review the following research, given the initial query and 
-    research plan. Provide feedback in regards to completeness, sources, and quality of 
-    the response. You have access to the same tools as the research writer. They can be used to
-    suggest refinements.
+    You are a research reviewer for religious scripture. Review the following research, 
+    given the initial query and  research plan. Provide feedback in regards to completeness,
+    sources, and quality of the response. You have access to the same tools as the research 
+    writer. They can be used spot-check veracity and to suggest refinements.
 
     The research may only have addressed a portion of the plan. Guide the writer through 
     steps to improve the answer.
@@ -274,11 +282,11 @@ synthesizer_critic_in_loop = Agent(
     """,
     tools=[
         tools.get_chapter_intro,
-        tools.get_chapter_intros_by_query,
+        tools.search_chapter_intros_semantically,
         tools.get_verses,
         tools.get_verse_footnotes,
-        tools.get_verses_for_query,
-        tools.get_topics_for_query,
+        tools.search_verses_semantically,
+        tools.search_topics_semantically,
         tools.get_verses_for_topic,
     ],
     output_key="answer_feedback",
@@ -298,7 +306,10 @@ synthesizer_refinement_loop = LoopAgent(
 
 deepdive_agent = SequentialAgent(
     name="DeepDive_Agent",
-    description="Write a research report on the topic. The topic must be an instruction or an open ended question, optionally with hints.",
+    description="""
+    Write a research report on the topic. The topic must be an instruction 
+    or an open ended question, optionally with hints such as topics in scope 
+    and tools to use.""",
     sub_agents=[
         planner_agent,
         synthesizer_refinement_loop,

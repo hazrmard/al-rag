@@ -72,8 +72,11 @@ def get_chapter_intro(ch: int) -> str:
     return corpus.quran[ch - 1]["intro_en"]
 
 
-def get_chapter_intros_by_query(query: str, num_results: int = 5) -> list[dict]:
-    """Search for chapter introductions relevant to a query.
+def search_chapter_intros_semantically(query: str, num_results: int = 5) -> list[dict]:
+    """Search for chapter numbers and introductions relevant to a search phrase.
+
+    The search phrase should be content to match, not metadata. Good example:
+    "respect for parents". Bad example: "similar to chapter 1".
 
     Args:
         query: The query string/keywords to semantically to search for.
@@ -147,8 +150,11 @@ def get_topics_in_verse(ch: int, start: int, end: int) -> list[str]:
     return sorted(list(set([sanitize_topic(t["topic"]) for t in topics])))
 
 
-def get_topics_for_query(query: str, num_results: int = 10) -> list[str]:
-    """Search for topics relevant to a query.
+def search_topics_semantically(query: str, num_results: int = 10) -> list[str]:
+    """Return list of topics relevant to a search phrase.
+
+    The search phrase should be content to match, not metadata. Good example:
+    "respect for parents". Bad example: "what topics does 3:15 have".
 
     Args:
         query: The query string/keywords to semantically to search for.
@@ -162,11 +168,11 @@ def get_topics_for_query(query: str, num_results: int = 10) -> list[str]:
     results = topics_collection.query(
         query_embeddings=[query_embedding], n_results=num_results
     )
-    ids = results["ids"][0]  # ids of form ch:verse-verse
+    ids = results["ids"][0]
     return ids
 
 
-def get_cross_references(ch: int, start: int, end: int) -> list[dict]:
+def get_cross_references(ch: int, start: int, end: int):
     """Return cross-references for a given verse.
 
     Args:
@@ -180,12 +186,14 @@ def get_cross_references(ch: int, start: int, end: int) -> list[dict]:
     pass
 
 
-def get_verses_for_query(
+def search_verses_semantically(
     query: str, ch: Optional[int] = None, num_results: int = 3
 ) -> list[dict]:
-    """Search for verses and their commentary that match a query.
+    """Return list of verse excerpts whose content and commentary
+    match a search phrase.
 
-    The query string can be natural language.
+    The search phrase should be content to match, not metadata. Good example:
+    "respect for parents". Bad example: "what does verse 3:15 mean".
 
     Args:
         query: The query string to semantically search for in the corpus.
