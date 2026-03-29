@@ -11,7 +11,7 @@ dependencies = [
     "chromadb>=1.1.0",
     "google-adk>=1.25.1",
     "google-genai>=1.64.0",
-    "litellm>=1.77.4",
+    "litellm<1.77.0", # See: https://github.com/BerriAI/litellm/issues/14762
     "numpydoc>=1.9.0",
     "python-dotenv>=1.1.1",
     "tqdm>=4.67.1",
