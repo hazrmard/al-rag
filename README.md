@@ -15,10 +15,17 @@ To interact with the corpus.
 
 ## Development & Testing
 
-To run the web interface:
+To run the debug web interface for the LLM agent (development):
 
+```bash
+uv run adk web --allow_origins "*" --log_level DEBUG --port 7999 src/quranai/agents/
 ```
-uv run adk web --log_level DEBUG --port 8000 src/quranai/agents/
+
+To run the web app interface:
+
+```bash
+npm run dev
+python3 -m http.server -d public/app
 ```
 
 To run the API server (with CORS enabled for the browser extension):
@@ -27,7 +34,7 @@ To run the API server (with CORS enabled for the browser extension):
 ./run_api.sh
 ```
 
-Alternatively, run manually:
+Alternatively, run manually for the API server:
 
 ```bash
 uv run adk api_server src/quranai/agents/ --allow_origins "*"
@@ -37,12 +44,26 @@ uv run adk api_server src/quranai/agents/ --allow_origins "*"
 
 `src/scripts/` defines utility scripts to build indices and other workflows not part of runtime. Run them using:
 
-```
+```bash
 uv run src/scripts/...
 ```
 
 ## Deployment
 
+### Docker (Recommended)
+
+The easiest way to run the entire stack (API + Web App) is using Docker Compose.
+
+1. **Configure Environment**: Copy `.env-TEMPLATE` to `.env` and fill in your `GOOGLE_API_KEY`.
+2. **Build and Run**:
+
+```bash
+docker-compose up --build
+```
+
+3. **Access**:
+    - Web App: [http://localhost:7998](http://localhost:7998)
+    - API Server: [http://localhost:7999](http://localhost:7999)
 
 ### Extension
 
@@ -53,7 +74,7 @@ The extension makes calls to the API server. To deploy server-side, run the api 
 To build and package the extension for the Chrome Web Store or Firefox Add-ons:
 
 ```bash
-./package_ext.sh
+./build_ext_package.sh
 ```
 
 This will create `quranai-extension.zip` in the root directory.

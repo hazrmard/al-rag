@@ -4,10 +4,12 @@ import resolve from '@rollup/plugin-node-resolve';
 import terser from '@rollup/plugin-terser';
 import css from 'rollup-plugin-css-only';
 import replace from '@rollup/plugin-replace';
+import copy from 'rollup-plugin-copy';
 import 'dotenv/config';
 
-const production = !process.env.ROLLUP_WATCH;
-const apiBaseUrl = production ? (process.env.QURANAI_API_BASE_URL || 'http://localhost:8000') : 'http://localhost:8000';
+const production = process.env.PROD;
+const apiPort = process.env.QURANAI_API_PORT || '7999';
+const apiBaseUrl = production ? process.env.QURANAI_API_BASE_URL : `http://localhost:${apiPort}`;
 
 console.log(`Building for ${production ? 'production' : 'development'}...`);
 console.log(`API_BASE_URL: ${apiBaseUrl}`);
@@ -20,13 +22,13 @@ export default [
       sourcemap: true,
       format: 'iife',
       name: 'app',
-      file: 'src/frontend/extension/bundle.js'
+      file: 'public/extension/bundle.js'
     },
     plugins: [
       replace({
         preventAssignment: true,
         values: {
-          '__QURANAI_API_BASE_URL__': JSON.stringify(production ? (process.env.QURANAI_API_BASE_URL || 'http://localhost:8000') : 'http://localhost:8000'),
+          '__QURANAI_API_BASE_URL__': JSON.stringify(apiBaseUrl),
           '__QURANAI_IS_EXTENSION__': JSON.stringify(true)
         }
       }),
@@ -51,6 +53,17 @@ export default [
       }),
       commonjs(),
 
+      copy({
+        targets: [
+          { src: 'src/frontend/extension/index.html', dest: 'public/extension' },
+          { src: 'src/frontend/extension/manifest.json', dest: 'public/extension' },
+          { src: 'src/frontend/extension/background.js', dest: 'public/extension' },
+          { src: 'src/frontend/extension/content.js', dest: 'public/extension' },
+          { src: 'src/frontend/extension/main.png', dest: 'public/extension' }
+        ],
+        verbose: true
+      }),
+
       // If we're building for production (npm run build
       // instead of npm run dev), minify
       production && terser()
@@ -66,13 +79,13 @@ export default [
       sourcemap: true,
       format: 'iife',
       name: 'app',
-      file: 'src/frontend/app/bundle.js'
+      file: 'public/app/bundle.js'
     },
     plugins: [
       replace({
         preventAssignment: true,
         values: {
-          '__QURANAI_API_BASE_URL__': JSON.stringify(production ? (process.env.QURANAI_API_BASE_URL || 'http://localhost:8000') : 'http://localhost:8000'),
+          '__QURANAI_API_BASE_URL__': JSON.stringify(apiBaseUrl),
           '__QURANAI_IS_EXTENSION__': JSON.stringify(false)
         }
       }),
@@ -87,6 +100,14 @@ export default [
         dedupe: ['svelte']
       }),
       commonjs(),
+
+      copy({
+        targets: [
+          { src: 'src/frontend/app/index.html', dest: 'public/app' }
+        ],
+        verbose: true
+      }),
+
       production && terser()
     ],
     watch: {

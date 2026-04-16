@@ -2,8 +2,10 @@
   "name": "quranai-frontend",
   "version": "1.0.0",
   "scripts": {
-    "build": "rollup -c rollup.config.mjs",
-    "dev": "ROLLUP_WATCH=true rollup -c rollup.config.mjs -w"
+    "clean": "rm -rf public/app public/extension",
+    "prebuild": "npm run clean",
+    "build": "PROD=true rollup -c rollup.config.mjs",
+    "dev": "rollup -c rollup.config.mjs -w"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^28.0.2",
@@ -13,6 +15,7 @@
     "dotenv": "^17.3.1",
     "marked": "^17.0.4",
     "rollup": "^4.59.0",
+    "rollup-plugin-copy": "^3.5.0",
     "rollup-plugin-css-only": "^4.5.2",
     "rollup-plugin-svelte": "^7.2.2",
     "svelte": "^4.2.19"

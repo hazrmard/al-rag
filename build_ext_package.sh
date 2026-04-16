@@ -39,7 +39,7 @@ echo "Packaging extension into $ZIP_NAME..."
 # - *.map (sourcemaps, usually not needed for final store uploads unless requested)
 # - .DS_Store (macOS junk)
 
-(cd src/frontend/extension && zip -r "../../../$ZIP_NAME" \
+(cd public/extension && zip -r "../../$ZIP_NAME" \
   manifest.json \
   index.html \
   bundle.js \

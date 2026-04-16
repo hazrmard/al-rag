@@ -82,3 +82,4 @@ Use FastMCP library. The MCP server exposes:
 ## TODOs
 
 - [x] Add "About" modal to the web app with extension links and first-time user logic.
+- [x] Create a Dockerfile and docker-compose.yaml for the backend and web app.

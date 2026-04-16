@@ -1,11 +1,14 @@
 #!/bin/bash
 
-# Script to run the QuranAI API server with CORS enabled for the browser extension.
-# Using "*" for development allows the extension to connect from its local origin.
+# Load environment variables from .env if it exists
+if [ -f .env ]; then
+    export $(grep -v '^#' .env | xargs)
+fi
 
-# For production, replace "*" with specific origins like "https://alislam.org"
+# Use values from .env or fall back to defaults
+PORT=${QURANAI_API_PORT:-7999}
 ALLOW_ORIGINS="*"
 
-echo "Starting API server with CORS enabled for: $ALLOW_ORIGINS"
+echo "Starting API server on port $PORT with CORS enabled for: $ALLOW_ORIGINS"
 
-uv run adk api_server src/quranai/agents/ --allow_origins "$ALLOW_ORIGINS" --port 8000
+uv run adk api_server src/quranai/agents/ --allow_origins "$ALLOW_ORIGINS" --port "$PORT"
