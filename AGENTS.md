@@ -80,3 +80,5 @@ Use FastMCP library. The MCP server exposes:
 - The AI agent as a callable endpoint. See src/quranai/agents/adk_runner.py for an example of running an agent.
 
 ## TODOs
+
+- [x] Add "About" modal to the web app with extension links and first-time user logic.

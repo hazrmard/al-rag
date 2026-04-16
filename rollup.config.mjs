@@ -26,7 +26,8 @@ export default [
       replace({
         preventAssignment: true,
         values: {
-          '__QURANAI_API_BASE_URL__': JSON.stringify(production ? (process.env.QURANAI_API_BASE_URL || 'http://localhost:8000') : 'http://localhost:8000')
+          '__QURANAI_API_BASE_URL__': JSON.stringify(production ? (process.env.QURANAI_API_BASE_URL || 'http://localhost:8000') : 'http://localhost:8000'),
+          '__QURANAI_IS_EXTENSION__': JSON.stringify(true)
         }
       }),
       svelte({
@@ -71,7 +72,8 @@ export default [
       replace({
         preventAssignment: true,
         values: {
-          '__QURANAI_API_BASE_URL__': JSON.stringify(production ? (process.env.QURANAI_API_BASE_URL || 'http://localhost:8000') : 'http://localhost:8000')
+          '__QURANAI_API_BASE_URL__': JSON.stringify(production ? (process.env.QURANAI_API_BASE_URL || 'http://localhost:8000') : 'http://localhost:8000'),
+          '__QURANAI_IS_EXTENSION__': JSON.stringify(false)
         }
       }),
       svelte({

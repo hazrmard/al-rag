@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { createSession, getSessionId, runAgent, storage } from '../shared/lib.js';
   import Message from './Message.svelte';
+  import AboutModal from './AboutModal.svelte';
 
   const APP_NAME = 'agent';
   const USER_ID = 'extension-user';
@@ -12,6 +13,7 @@
   let contextVerses = [];
   let lastMessagesLength = 0;
   let isLoading = false;
+  let isAboutModalOpen = false;
 
   async function addMessage(text, sender, events = []) {
     messages = [...messages, { text, sender, events }];
@@ -33,6 +35,15 @@
   }
 
   onMount(async () => {
+    // Check if first time user (only for web app)
+    if (!__QURANAI_IS_EXTENSION__) {
+      const hasVisited = await storage.get('hasVisited');
+      if (!hasVisited) {
+        isAboutModalOpen = true;
+        await storage.set('hasVisited', true);
+      }
+    }
+
     // Load persisted state
     const savedMessages = await storage.get('messages');
     if (savedMessages && Array.isArray(savedMessages)) {
@@ -145,6 +156,10 @@
       sendMessage();
     }
   }
+
+  function toggleAboutModal() {
+    isAboutModalOpen = !isAboutModalOpen;
+  }
 </script>
 
 <style>
@@ -166,13 +181,19 @@
   .header h3 {
     margin: 0;
   }
-  .clear-btn {
+  .header-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .action-btn {
     background: none;
     border: none;
     color: #666;
     font-size: 0.8em;
     cursor: pointer;
     text-decoration: underline;
+    padding: 0;
   }
   .messages-container {
     flex: 1;
@@ -246,7 +267,10 @@
 
 <div class="header">
   <h3>QuranAI Chat</h3>
-  <button class="clear-btn" on:click={startNewChat}>New Chat</button>
+  <div class="header-actions">
+    <button class="action-btn" on:click={toggleAboutModal}>About</button>
+    <button class="action-btn" on:click={startNewChat}>New Chat</button>
+  </div>
 </div>
 
 <div class="messages-container" bind:this={messagesDiv}>
@@ -279,3 +303,7 @@
   />
   <button class="send-btn" on:click={sendMessage}>Send</button>
 </div>
+
+{#if isAboutModalOpen}
+  <AboutModal on:close={toggleAboutModal} />
+{/if}
