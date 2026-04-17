@@ -8,7 +8,8 @@ COPY package.json package-lock.json ./
 RUN npm install --silent
 
 # Copy the rest of the frontend source
-COPY . .
+COPY src/frontend ./src/frontend
+COPY rollup.config.mjs ./rollup.config.mjs
 
 # Build the frontend artifacts to public/
 # The API base URL must be accessible from the user's browser.
@@ -29,6 +30,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# Copy built frontend artifacts from stage 1
+COPY --from=frontend-builder /app/public/app ./public/app
+
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uv/bin/
 ENV PATH="/app/.venv/bin:/uv/bin:${PATH}"
@@ -38,11 +42,8 @@ ENV UV_LINK_MODE=copy
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project --no-dev
 
-# Copy built frontend artifacts from stage 1
-COPY --from=frontend-builder /app/public/app ./public/app
-
 # Copy the backend source and other necessary files
-COPY src/ ./src/
+COPY src/quranai ./src/quranai
 RUN touch ./README.md
 # Sync the project itself (now that src is present)
 RUN uv sync --frozen --no-dev

@@ -23,7 +23,5 @@ services:
     ports:
       - "${QURANAI_UI_PORT:-7998}:${QURANAI_UI_PORT:-7998}"
     command: >
-      sh -c "python3 -m http.server $QURANAI_UI_PORT -d public/app -b 0.0.0.0"
+      sh -c "python3 -m http.server $QURANAI_UI_PORT -d public/app"
     restart: unless-stopped
-    volumes:
-      - ./public/app:/app/public/app
