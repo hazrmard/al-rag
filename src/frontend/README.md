@@ -37,11 +37,13 @@ The extension uses a multi-layered approach to stay in sync across different bro
 Build scripts and dependencies are managed in the root `package.json`.
 
 To build both targets:
+
 ```bash
 npm run build
 ```
 
 To start development mode with live reloading:
+
 ```bash
 npm run dev
 ```

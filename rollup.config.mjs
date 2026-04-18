@@ -7,7 +7,7 @@ import replace from '@rollup/plugin-replace';
 import copy from 'rollup-plugin-copy';
 import 'dotenv/config';
 
-const production = process.env.PROD;
+const production = process.env.PROD === 'true';
 const apiPort = process.env.QURANAI_API_PORT || '7999';
 const apiBaseUrl = production ? process.env.QURANAI_API_BASE_URL : `http://localhost:${apiPort}`;
 

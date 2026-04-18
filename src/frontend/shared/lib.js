@@ -3,6 +3,7 @@
  */
 
 const API_BASE_URL = __QURANAI_API_BASE_URL__;
+console.info("API URL is: ", API_BASE_URL);
 
 /**
  * Helper for data persistence.
