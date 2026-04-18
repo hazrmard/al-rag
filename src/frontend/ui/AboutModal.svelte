@@ -102,10 +102,10 @@
       <h3>Get the Extension</h3>
       <p>Enhance your experience on alislam.org/quran/app with our browser extensions.</p>
       <div class="links">
-        <a href="https://chrome.google.com/webstore" target="_blank" rel="noopener noreferrer">
+        <a href="https://chromewebstore.google.com/detail/quranai/hmabpgkeagldiiggmgbkbbfgfmdmppgl" target="_blank" rel="noopener noreferrer">
           Install for Chrome
         </a>
-        <a href="https://addons.mozilla.org" target="_blank" rel="noopener noreferrer">
+        <a href="https://addons.mozilla.org/en-US/firefox/addon/quranai" target="_blank" rel="noopener noreferrer">
           Install for Firefox
         </a>
       </div>
