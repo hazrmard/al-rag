@@ -90,6 +90,8 @@
     <button class="close-icon" on:click={close}>×</button>
     <h2>About QuranAI</h2>
     <p>QuranAI is an intelligent assistant designed to help you explore and understand the Quran.</p>
+
+    <iframe width="100%" style="min-height: 200px" src="https://www.youtube.com/embed/VnaCR55v10w?si=ft_070h8jT2FFeci" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
     
     <h3>Features</h3>
     <ul class="features">
