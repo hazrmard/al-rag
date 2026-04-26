@@ -1,38 +1,43 @@
 # QuranAI
 
-A LLM-powered application for conversational research with Quran.
+A LLM-powered application for conversational research with the Quran.
 
-This application exposes:
+This repository hosts the **backend**:
 
-1. A web interface
-2. A MCP server
-3. A CLI
-4. The core agent library
+1. The core AI agent library (`src/quranai/`)
+2. An ADK API server
+3. (Planned) An MCP server
+4. (Planned) A CLI
 
-To interact with the corpus.
+The **web UI** lives in a sibling project: [`../ask-quran-react/`](../ask-quran-react/) (Vite + React + MUI).
 
 ## Installation
 
+Use [`uv`](https://github.com/astral-sh/uv) for Python dependency management.
+
+```bash
+uv sync
+```
+
+Copy `.env-TEMPLATE` to `.env` and fill in `GOOGLE_API_KEY`.
+
 ## Development & Testing
 
-To run the debug web interface for the LLM agent (development):
+To run the debug ADK web interface (development convenience):
 
 ```bash
 uv run adk web --allow_origins "*" --log_level DEBUG src/quranai/agents/
 ```
 
-To run the user-facing web app interface:
+To run the API server that the React app talks to:
 
 ```bash
-npm run dev
-python3 -m http.server -d public/app $QURANAI_UI_PORT
-```
-
-To run the corresponding API server:
-
-```bash
+./run_api.sh
+# or
 uv run adk api_server src/quranai/agents/ --allow_origins "*" --port $QURANAI_API_PORT
 ```
+
+The API server's Swagger UI is available at `http://localhost:$QURANAI_API_PORT/doc`.
 
 `src/scripts/` defines utility scripts to build indices and other workflows not part of runtime. Run them using:
 
@@ -40,56 +45,39 @@ uv run adk api_server src/quranai/agents/ --allow_origins "*" --port $QURANAI_AP
 uv run src/scripts/...
 ```
 
-To run the docker containers for staging, run the following. This runs the exact same commands as in prod, except for the API url.
+## Tests
+
+Python tests live under `src/tests/` and run with `pytest`:
 
 ```bash
-. ./run_docker_staging.sh
+uv run pytest
 ```
 
 ## Deployment
 
-### Docker (Recommended)
+### Docker (recommended)
 
-The easiest way to run the entire stack (API + Web App) is using Docker Compose.
+The image runs the ADK API server only. The React UI is deployed separately from `../ask-quran-react/`.
 
-1. **Configure Environment**: Copy `.env-TEMPLATE` to `.env` and fill in your `GOOGLE_API_KEY`.
-2. **Build and Run (Development)**:
-   This will mount the `src` directory for live reloading of the backend.
+1. **Configure environment**: copy `.env-TEMPLATE` to `.env` and fill in `GOOGLE_API_KEY`.
+2. **Run (development)**:
 
 ```bash
+./run_docker_staging.sh
+# or
 docker compose --profile dev up --build
 ```
 
-3. **Build and Run (Production)**:
-   Ensure `QURANAI_API_BASE_URL` is set in your environment if the API is not hosted on the same origin as the web app.
+3. **Run (production)**:
 
 ```bash
+./run_docker_prod.sh
+# or
 docker compose --profile prod up --build -d
 ```
 
-4. **Access**:
-    - Web App: [http://localhost:7998](http://localhost:7998)
-    - API Server: [http://localhost:7999](http://localhost:7999)
+4. **Access**: API server at `http://localhost:7999` (or whatever `QURANAI_API_PORT` is set to).
 
-### Extension
+## Web UI
 
-The extension makes calls to the API server. To deploy server-side, run the api server command.
-
-#### Packaging for Distribution
-
-To build and package the extension for the Chrome Web Store or Firefox Add-ons:
-
-```bash
-./build_ext_package.sh
-```
-
-This will create `quranai-extension.zip` in the root directory.
-
-To package the source code for review (as required by some stores):
-
-```bash
-./build_ext_source.sh
-```
-
-This will create `quranai-ext-source.zip` in the root directory.
-
+See [`../ask-quran-react/README.md`](../ask-quran-react/README.md) for installing and running the chat interface that consumes this API.

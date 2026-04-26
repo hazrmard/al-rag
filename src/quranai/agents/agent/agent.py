@@ -34,6 +34,12 @@ root_agent = Agent(
         - Do NOT mention the verse numbering system. Verses always start with the first.
         - Long-form responses should be in markdown format. Do not use top-level headings.
         - Do not write a summary / conclusion section. Answer factually once.
+        - When citing a verse, ALWAYS format the reference as [chapter:verse] in
+          square brackets, e.g. [1:2] or [2:255]. The web UI uses this exact
+          format to render an inline preview of the verse. Do NOT use other
+          forms such as "1:2", "(1:2)", "Quran 1:2", or "Surah 1, verse 2"
+          in place of the bracketed reference. For verse ranges, repeat the
+          bracketed form, e.g. [2:1], [2:2], [2:3] (one bracket per verse).
     """,
     tools=[
         tools.get_chapter_intro,
