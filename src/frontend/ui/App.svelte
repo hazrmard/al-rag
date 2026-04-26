@@ -6,6 +6,7 @@
 
   const APP_NAME = 'agent';
   const USER_ID = 'extension-user';
+  const isExtension = __QURANAI_IS_EXTENSION__;
 
   let messages = [];
   let userInput = '';
@@ -270,6 +271,9 @@
   <div class="header-actions">
     <button class="action-btn" on:click={toggleAboutModal}>About</button>
     <button class="action-btn" on:click={startNewChat}>New Chat</button>
+    {#if isExtension}
+      <a class="action-btn" href="https://alislam.org/quran/app">Al-Islam Quran</a>
+    {/if}
   </div>
 </div>
 
