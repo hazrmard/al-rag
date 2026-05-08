@@ -34,3 +34,4 @@ quranai-ext-source.zip
 *.njsproj
 *.sln
 *.sw?
+.claude

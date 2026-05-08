@@ -1,12 +1,12 @@
 [project]
 name = "quranai"
-version = "0.2.0"
+version = "0.2.2"
 description = "Add your description here"
 readme = "README.md"
 authors = [
     { name = "hazrmard", email = "hazrmard@gmail.com" }
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "chromadb>=1.1.0",
     "google-adk>=1.25.1",
