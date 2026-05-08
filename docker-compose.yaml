@@ -6,7 +6,7 @@ services:
     env_file:
       - .env
     ports:
-      - "${QURANAI_API_PORT:-7999}:${QURANAI_API_PORT:-7999}"
+      - "${QURANAI_API_PORT:-7990}:${QURANAI_API_PORT:-7990}"
     command: >
       sh -c "uv run adk api_server src/quranai/agents/ --host 0.0.0.0 --port $QURANAI_API_PORT --allow_origins '*'"
     restart: unless-stopped
@@ -18,7 +18,7 @@ services:
     env_file:
       - .env
     ports:
-      - "${QURANAI_API_PORT:-7999}:${QURANAI_API_PORT:-7999}"
+      - "${QURANAI_API_PORT:-7990}:${QURANAI_API_PORT:-7990}"
     command: >
       sh -c "uv run adk api_server src/quranai/agents/ --host 0.0.0.0 --port $QURANAI_API_PORT --allow_origins '*'"
     restart: unless-stopped

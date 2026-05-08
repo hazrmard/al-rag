@@ -6,7 +6,7 @@ if [ -f .env ]; then
 fi
 
 # Use values from .env or fall back to defaults
-PORT=${QURANAI_API_PORT:-7999}
+PORT=${QURANAI_API_PORT:-7990}
 ALLOW_ORIGINS="*"
 
 echo "Starting API server on port $PORT with CORS enabled for: $ALLOW_ORIGINS"
