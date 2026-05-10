@@ -3,7 +3,7 @@
 The Quran corpus is a database with the following structure:
 
 ```
-# Corpus.quran:
+# Corpus.quran is a json DB:
 list of dict:               # chapters can be indexed by (chapter number - 1)
   chapter_name: str
   ch: int
@@ -22,6 +22,20 @@ list of dict:               # chapters can be indexed by (chapter number - 1)
       notes: list of dict:
         ref: str            # reference number in the text, "ref"
         note: str
+    words: list of dict:
+      t: str
+    tq:
+      ch: int
+      v: int
+      url: str
+    tafaseer: list of str
+    citations: list of dict:
+      title: str
+      slug: str
+      language: str
+    hadiths: list of dict:
+      slug: str             # id of hadith (collectionId-hadithNumber, see hadith/corpus.py)
+      title: str
 
 # Corpus.topics:
 list of str:               # sorted list of unique topics in the Quran
@@ -35,8 +49,8 @@ dict:                      # mapping of topic to list of verse references in the
 import re
 from typing import Optional
 
-from quranai.quran.corpus import Corpus, sanitize_topic, embed_chunks
-
+from quranai.quran.corpus import Corpus, sanitize_topic
+from quranai.utils import embed_chunks
 
 corpus = Corpus()
 
@@ -148,6 +162,10 @@ def get_topics_in_verse(ch: int, start: int, end: int) -> list[str]:
     for verse in corpus.quran[ch - 1]["verses"][start - 1 : end]:
         topics.extend(verse["topics"])
     return sorted(list(set([sanitize_topic(t["topic"]) for t in topics])))
+
+
+def get_related_hadith(ch: int, verse: int) -> str:
+    pass
 
 
 def search_topics_semantically(query: str, num_results: int = 10) -> list[str]:

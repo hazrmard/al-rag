@@ -45,12 +45,12 @@ print(schema(ch1))
 
 # %%
 quran = {}
-for i in range(1, 115):
+for i in trange(1, 115, leave=False):
     quran[i] = download_ch(i)
 
 # %%
 with open(get_data_file_path(corpus_json), "w") as f:
-    json.dump(corpus_json, f)
+    json.dump(quran, f)
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Parsing
@@ -62,7 +62,6 @@ from quranai.quran.corpus import (
     load_corpus_into_memory,
     get_referenced_verses_in_corpus,
 )
-from litellm import token_counter
 
 # %%
 quran = load_corpus_into_memory()
@@ -230,9 +229,6 @@ import json
 
 HADITH_API_BASE = "https://api.readhadith.app/ahadith/"
 
-# %%
-example = json.loads(requests.get(HADITH_API_BASE).content)
-
 
 # %%
 def download_page(page: int = 1) -> dict:
@@ -252,32 +248,47 @@ from tqdm.autonotebook import tqdm
 
 
 def download_all_pages() -> list:
-    pages = [download_page(1)]
-    # total_pages = pages[0]["pagination"]["totalPages"]
+    pg1 = download_page(1)
+    hadiths = [*pg1["data"]]
+    # total_pages = pg1["pagination"]["totalPages"]
     total_pages = 5
     concurrency = 16
-    # use thread pools to concurrently download pages
     with ThreadPoolExecutor(concurrency) as pool:
         futures = [pool.submit(download_page, pg) for pg in range(2, total_pages + 1)]
         for future in tqdm(as_completed(futures), total=total_pages - 1, leave=False):
-            pages.append(future.result())
-    return pages
+            hadiths.extend(future.result()["data"])
+    return hadiths
 
 
 # %%
 pages = download_all_pages()
 
 # %%
-pg = download_page(1)
+from quranai.hadith.corpus import load_corpus_into_memory
+
+hadith = load_corpus_into_memory()
 
 # %%
-for p in pages:
-    print(len(p["data"]))
+from quranai.hadith.corpus import _prepare_hadith_for_embedding
+
+print(_prepare_hadith_for_embedding(hadith[0]))
 
 # %%
-pg["data"]
+from quranai.utils import count_tokens
+from quranai.hadith.corpus import chunks, Corpus
+
+ids, chunks_, metadata = zip(*chunks(Corpus()))
+
+tokens = map(count_tokens, chunks_)
 
 # %%
-print(schema(pg))
+for i, t in enumerate(chunks_):
+    print(i, count_tokens(t), t.split("\n")[0])
+    if i >= 4:
+        break
 
 # %%
+for i, t in enumerate(tokens):
+    print(i, t)
+    if i > 12:
+        break

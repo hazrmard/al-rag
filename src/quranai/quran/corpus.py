@@ -1,4 +1,43 @@
-"""Functions to load Quran corpus data."""
+"""Functions to load Quran corpus data.
+
+Schema from API.
+
+```
+chapter_name: str
+chapter_name_ur: str
+ch: int
+intro_en: str
+intro_ur: str
+verses: list of dict:
+  ch: int
+  v: int
+  v_: int
+  topics: list of dict:
+    id: int
+    topic: str
+    verses: str
+  ar: str
+  words: list of dict:
+    t: str
+  tq:
+    ch: int
+    v: int
+    url: str
+  tafaseer: list of str
+  v5:
+    text: str
+    notes: list of dict:
+      ref: str
+      note: str
+  citations: list of dict:
+    title: str
+    slug: str
+    language: str
+  hadiths: list of dict:
+    slug: str       # id of hadith (collectionId-hadithNumber, see hadith/corpus.py)
+    title: str
+```
+"""
 
 import json
 import time
@@ -8,8 +47,8 @@ from collections import defaultdict
 from typing import Any, Generator, Literal
 
 import chromadb
-import requests
 from chromadb.api import ClientAPI
+import requests
 from tqdm import tqdm, trange
 from google.genai.errors import ClientError as GoogleClientError
 
