@@ -1,10 +1,12 @@
-from abc import ABC
 import importlib.resources
 import pathlib
-from pyexpat.errors import messages
 from typing import Any, Iterator, Optional, TypedDict
 import inspect
 from typing import Callable, Union, Literal, get_origin, get_args
+
+from chromadb import Documents, EmbeddingFunction, Embeddings
+from chromadb.utils.embedding_functions import register_embedding_function
+import numpy as np
 
 
 def list_data_files():
@@ -268,3 +270,61 @@ class SingletonMeta(type):
         if cls not in cls._instances:
             cls._instances[cls] = super().__call__(*args, **kwargs)
         return cls._instances[cls]
+
+
+def embed_chunks(
+    chunks: list[str],
+    mode: Literal[
+        "RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY", "QUESTION_ANSWERING"
+    ] = "RETRIEVAL_DOCUMENT",
+) -> list[np.ndarray]:
+    """Converts a list of strings into embedding vectors.
+
+    Args:
+        chunks (list[str]): List of strings to embed.
+        mode (Literal[ RETRIEVAL_DOCUMENT, RETRIEVAL_QUERY, QUESTION_ANSWERING ], optional):
+        The embedding mode. The default mode is for storing documents. The others are
+        for querying documents.. Defaults to "RETRIEVAL_DOCUMENT".
+
+    Raises:
+        ValueError: _description_
+
+    Returns:
+        list[np.ndarray]: List of embeddings.
+    """
+    import os
+
+    from google.genai import Client
+    from google.genai.types import EmbedContentConfig
+
+    client = Client(api_key=os.getenv("GOOGLE_API_KEY"))
+    result = client.models.embed_content(
+        model="gemini-embedding-001",
+        contents=chunks,  # type: ignore
+        config=EmbedContentConfig(task_type=mode, output_dimensionality=3072),
+    )
+    if result.embeddings is None or not result.embeddings[0].values:
+        raise ValueError("Embedding failed: no embeddings returned")
+    return [np.asarray(result.embeddings[i].values) for i in range(len(chunks))]
+
+
+@register_embedding_function
+class CustomEmbeddingFunction(EmbeddingFunction):
+
+    def __init__(self, model="gemini-embedding-001"):
+        self.model = model
+
+    def __call__(self, input: Documents) -> Embeddings:
+        # embed the documents somehow
+        return embed_chunks(input)  # type: ignore
+
+    @staticmethod
+    def name() -> str:
+        return "custom_embedding_function"
+
+    def get_config(self) -> dict[str, Any]:
+        return dict(model=self.model)
+
+    @staticmethod
+    def build_from_config(config: dict[str, Any]) -> "EmbeddingFunction":
+        return CustomEmbeddingFunction(config["model"])

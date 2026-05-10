@@ -5,18 +5,20 @@ import time
 from datetime import datetime
 import re
 from collections import defaultdict
-from typing import Any, Dict, Generator, Literal
+from typing import Any, Generator, Literal
 
 import chromadb
-import numpy as np
 import requests
-from chromadb import Documents, EmbeddingFunction, Embeddings
 from chromadb.api import ClientAPI
-from chromadb.utils.embedding_functions import register_embedding_function
 from tqdm import tqdm, trange
 from google.genai.errors import ClientError as GoogleClientError
 
-from quranai.utils import SingletonMeta, get_data_file_path, list_data_files
+from quranai.utils import (
+    SingletonMeta,
+    get_data_file_path,
+    embed_chunks,
+    CustomEmbeddingFunction,
+)
 
 url = "https://api.openquran.com"
 intro_url = "/express/chapter/intro/{ch}"
@@ -24,7 +26,6 @@ verses_url = "/express/chapter/{ch}:{start}-{end}"
 chapters = 114
 corpus_json = "quran.json"
 vector_db = "quranai.chroma"
-chunk_embed_dimension = 3072
 
 
 payload = {
@@ -233,66 +234,6 @@ def chunks(
         if batch:
             id_ = f"{ch_}:{verse['v']-len(batch)+1}-{verse['v']}"  # type: ignore
             yield id_, "\n\n".join(batch), dict(ch=ch_)
-
-
-def embed_chunks(
-    chunks: list[str],
-    mode: Literal[
-        "RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY", "QUESTION_ANSWERING"
-    ] = "RETRIEVAL_DOCUMENT",
-) -> list[np.ndarray]:
-    """Converts a list of strings into embedding vectors.
-
-    Args:
-        chunks (list[str]): List of strings to embed.
-        mode (Literal[ RETRIEVAL_DOCUMENT, RETRIEVAL_QUERY, QUESTION_ANSWERING ], optional):
-        The embedding mode. The default mode is for storing documents. The others are
-        for querying documents.. Defaults to "RETRIEVAL_DOCUMENT".
-
-    Raises:
-        ValueError: _description_
-
-    Returns:
-        list[np.ndarray]: List of embeddings.
-    """
-    import os
-
-    from google.genai import Client
-    from google.genai.types import EmbedContentConfig
-
-    client = Client(api_key=os.getenv("GOOGLE_API_KEY"))
-    result = client.models.embed_content(
-        model="gemini-embedding-001",
-        contents=chunks,  # type: ignore
-        config=EmbedContentConfig(
-            task_type=mode, output_dimensionality=chunk_embed_dimension
-        ),
-    )
-    if result.embeddings is None or not result.embeddings[0].values:
-        raise ValueError("Embedding failed: no embeddings returned")
-    return [np.asarray(result.embeddings[i].values) for i in range(len(chunks))]
-
-
-@register_embedding_function
-class CustomEmbeddingFunction(EmbeddingFunction):
-
-    def __init__(self, model="gemini-embedding-001"):
-        self.model = model
-
-    def __call__(self, input: Documents) -> Embeddings:
-        # embed the documents somehow
-        return embed_chunks(input)  # type: ignore
-
-    @staticmethod
-    def name() -> str:
-        return "custom_embedding_function"
-
-    def get_config(self) -> Dict[str, Any]:
-        return dict(model=self.model)
-
-    @staticmethod
-    def build_from_config(config: Dict[str, Any]) -> "EmbeddingFunction":
-        return CustomEmbeddingFunction(config["model"])
 
 
 def _build_verse_index(batches_per_request=20):

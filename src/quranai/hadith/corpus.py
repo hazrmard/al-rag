@@ -41,6 +41,7 @@ pagination:
 import requests
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from tqdm.autonotebook import tqdm
 
 HADITH_API_BASE = "https://api.readhadith.app/ahadith/"
