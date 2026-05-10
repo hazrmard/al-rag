@@ -1,3 +1,4 @@
+from abc import ABC
 import importlib.resources
 import pathlib
 from pyexpat.errors import messages

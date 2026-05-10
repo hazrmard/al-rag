@@ -8,7 +8,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.17.3
 #   kernelspec:
-#     display_name: Python 3 (ipykernel)
+#     display_name: quranai (3.13.12)
 #     language: python
 #     name: python3
 # ---
@@ -19,9 +19,7 @@
 import os
 import re
 from pathlib import Path
-import requests, json
-# import numpy as np
-# from litellm import embedding, completion, completion_cost
+import requests
 import json
 from tqdm.autonotebook import trange, tqdm
 from dotenv import load_dotenv
@@ -31,6 +29,9 @@ from quranai.utils import schema, list_data_files, get_data_file_path
 from quranai.quran.corpus import corpus_json
 
 load_dotenv("./.env", override=True);
+
+# %% [markdown]
+# # Quran
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Download
@@ -210,78 +211,73 @@ emb = corpus.embed_chunks(["attributes of allah"], mode="RETRIEVAL_QUERY")
 
 # %%
 import numpy as np
+
 col.query(np.asarray(emb))
 
 # %%
 col.count()
 
 # %% [markdown]
-# ## LLM
-
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
-# ### Custom Agent
-
-# %%
-from quranai.agent import CustomBaseAgent
-from quranai.quran.agent import CustomQuranAgent
-from quranai.llm import LLM, tool_annotator
-from quranai.utils import extract_tool_results, tool_annotator, AgentState
-import cProfile, pstats, io, os
-
-print(os.getenv("OPENAI_MODEL_NAME"))
-
-# %%
-llm = LLM(model_name="gpt-4.1-mini")
-quran_assistant = CustomQuranAgent(name="quran_assistant")
-
-agent = CustomBaseAgent(
-    model=llm,
-    tools=[],
-    agents=[quran_assistant],
-)
-
-# %%
-quran_assistant.state
-
-# %%
-state = agent.state
-state = agent("Who are you? Be short.", state=state)
-print(state)
-
-# %%
-print(agent.run("What does the Quran say about making friends with disbelievers?"))
-
-# %%
-extract_tool_results(quran_assistant.messages)
-
-# %%
-agent = CustomBaseAgent(model=llm, tools=[calculator])
-agent.run("What is the result of this calculation: 12345678 / 43567?")
-# agent.run("What tools do you have? List them.")
-
-# %%
-agent = CustomQuranAgent()
-agent.run("What does the Quran say about making friends with disbelievers?")
-
-# %%
-from quranai.quran.agent import get_verses
-
-get_verses(4, 62, 63)
-
-# %%
-resp.usage
-
-# %%
-with cProfile.Profile() as pr:
-    res = qagent.run("What does 1:1 say?", max_steps=3, return_full_result=True)
-s = io.StringIO()
-sortby = pstats.SortKey.CUMULATIVE
-ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-ps.print_stats()
-print(s.getvalue())
+# # Hadith
 
 # %% [markdown]
-# ### Google ADK
+# ## Download
 
-# %% [markdown]
-#
+# %%
+from quranai.utils import schema
+import requests
+import json
+
+HADITH_API_BASE = "https://api.readhadith.app/ahadith/"
+
+# %%
+example = json.loads(requests.get(HADITH_API_BASE).content)
+
+
+# %%
+def download_page(page: int = 1) -> dict:
+    url = HADITH_API_BASE + "?page={page}"
+    try:
+        response = requests.get(url.format(page=page))
+        content = response.content
+        data = json.loads(content)
+    except Exception as exc:
+        raise exc
+    return data
+
+
+# %%
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm.autonotebook import tqdm
+
+
+def download_all_pages() -> list:
+    pages = [download_page(1)]
+    # total_pages = pages[0]["pagination"]["totalPages"]
+    total_pages = 5
+    concurrency = 16
+    # use thread pools to concurrently download pages
+    with ThreadPoolExecutor(concurrency) as pool:
+        futures = [pool.submit(download_page, pg) for pg in range(2, total_pages + 1)]
+        for future in tqdm(as_completed(futures), total=total_pages - 1, leave=False):
+            pages.append(future.result())
+    return pages
+
+
+# %%
+pages = download_all_pages()
+
+# %%
+pg = download_page(1)
+
+# %%
+for p in pages:
+    print(len(p["data"]))
+
+# %%
+pg["data"]
+
+# %%
+print(schema(pg))
+
+# %%
