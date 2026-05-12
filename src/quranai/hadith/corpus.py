@@ -148,7 +148,7 @@ def chunks(
         yield id_, text, metadata
 
 
-def _build_hadith_index(max_tokens_per_request=max_chunk_length):
+def _build_hadith_index(max_tokens_per_request=max_chunk_length, update_only=False):
     """This function builds an index of the corpus.
 
     Steps:
@@ -157,13 +157,17 @@ def _build_hadith_index(max_tokens_per_request=max_chunk_length):
     3. Generate embeddings for each chunk.
     4. Store the chunks and their embeddings in a vector database."""
     corpus = Corpus()
+    collection = corpus.hadith_collection
     ids, chunks_, metadata = zip(*chunks(corpus))
-    start = datetime.now()
     tokens_in_batch = 0
     batch_chunks = []
     batch_ids = []
     batch_metadata = []
     for i in trange(0, len(chunks_), leave=False):
+        if update_only:
+            if collection.get(ids=[ids[i]])["ids"]:
+                # skip if ID already exists
+                continue
         tokens_in_batch += len(chunks_[i]) / 4
         if tokens_in_batch < max_chunk_length:
             batch_chunks.append(chunks_[i])
@@ -173,12 +177,10 @@ def _build_hadith_index(max_tokens_per_request=max_chunk_length):
         try:
             embeddings = embed_chunks(batch_chunks)
         except GoogleClientError as e:
-            delay = 60 - (datetime.now() - start).seconds
-            print(f"Google API error: {e}. Retrying after a delay of {delay} seconds.")
+            delay = 60
+            print(f"Google API error: {e}. Retrying after a delay of 60 seconds.")
             time.sleep(delay)  # wait for the minute to pass
-            start = datetime.now()
             embeddings = embed_chunks(batch_chunks)
-        collection = corpus.hadith_collection
         collection.upsert(
             embeddings=embeddings, ids=batch_ids, metadatas=batch_metadata
         )

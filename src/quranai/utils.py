@@ -328,3 +328,13 @@ class CustomEmbeddingFunction(EmbeddingFunction):
     @staticmethod
     def build_from_config(config: dict[str, Any]) -> "EmbeddingFunction":
         return CustomEmbeddingFunction(config["model"])
+
+
+def count_tokens(text: str) -> int:
+    from google.genai import Client
+
+    client = Client()
+    # Count tokens for a simple text prompt
+    response = client.models.count_tokens(model="gemini-embedding-001", contents=text)
+    assert response.total_tokens is not None
+    return response.total_tokens
