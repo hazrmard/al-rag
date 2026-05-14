@@ -11,6 +11,7 @@ CONTAINER_PREFIX="ask-quran-adk"
 START_PORT=7991
 NUM_INSTANCES=5
 CONTAINER_PORT=7990   # Internal port the ADK API server listens on inside the container
+READ_QURAN_API_URL=https://api.readquran.app
 ENV_FILE="$HOME/ask-quran-adk/.env"
 DOCKER_NETWORK="ask-quran-net"
 SESSION_VOLUME="ask-quran-adk-sessions"   # Shared SQLite session store across all replicas
@@ -71,6 +72,7 @@ ensure_env_file() {
 GOOGLE_GENAI_USE_VERTEXAI=0
 GOOGLE_API_KEY=
 QURANAI_API_PORT=${CONTAINER_PORT}
+READ_QURAN_API_URL=${READ_QURAN_API_URL}
 EOF
     fi
 }
