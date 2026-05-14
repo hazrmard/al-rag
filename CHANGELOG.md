@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0
+
+- Added hadith lookup tool to main Quran agent. The tool makes calls to readquran API to get references and content of related hadith.
+- Added READ_QURAN_API_URL env variable to template and run_instances.sh
+
 ## 0.2.2
 
 - Fixed "Session not found" errors caused by 5 replicas each writing to their own per-container SQLite at `/app/.../session.db`. The Dockerfile now starts the ADK API with `--session_service_uri 'sqlite:////data/sessions.db'`, and `run-instances.sh` mounts a shared docker named volume `ask-quran-adk-sessions` at `/data` on every replica. All instances now read/write one SQLite file, so nginx round-robin no longer drops sessions.

@@ -8,7 +8,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.17.3
 #   kernelspec:
-#     display_name: Python 3 (ipykernel)
+#     display_name: quranai (3.13.12)
 #     language: python
 #     name: python3
 # ---
@@ -210,10 +210,16 @@ emb = corpus.embed_chunks(["attributes of allah"], mode="RETRIEVAL_QUERY")
 
 # %%
 import numpy as np
+
 col.query(np.asarray(emb))
 
 # %%
 col.count()
+
+# %%
+from quranai.quran.tools import get_related_hadith
+
+get_related_hadith(1, 2)
 
 # %% [markdown]
 # ## LLM

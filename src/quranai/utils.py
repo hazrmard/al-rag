@@ -1,7 +1,8 @@
 import importlib.resources
 import pathlib
 from pyexpat.errors import messages
-from typing import Any, Iterator, Optional, TypedDict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Iterator, Optional, TypedDict, Callable
 import inspect
 from typing import Callable, Union, Literal, get_origin, get_args
 
@@ -267,3 +268,24 @@ class SingletonMeta(type):
         if cls not in cls._instances:
             cls._instances[cls] = super().__call__(*args, **kwargs)
         return cls._instances[cls]
+
+
+def gather_results_concurrently(
+    func: Callable, args: list, max_workers: int = 5
+) -> list:
+    """Execute func over args concurrently and return list of results.
+
+    Args:
+        func (Callable): Function to run. Return value is concatenated.
+        args (list): List of args to pass to func.
+        max_workers (int, optional): Max number of threads. Defaults to 5.
+
+    Returns:
+        list: Result of each func(arg) invocation in a list.
+    """
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(func, arg) for arg in args]
+        results = []
+        for future in as_completed(futures):
+            results.append(future.result())
+    return results

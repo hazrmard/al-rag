@@ -33,10 +33,14 @@ dict:                      # mapping of topic to list of verse references in the
 """
 
 import re
+import os
+import json
 from typing import Optional
 
-from quranai.quran.corpus import Corpus, sanitize_topic, embed_chunks
+import requests
 
+from quranai.quran.corpus import Corpus, sanitize_topic, embed_chunks
+from quranai.utils import gather_results_concurrently
 
 corpus = Corpus()
 
@@ -283,3 +287,49 @@ def extract_verse_references(text: str) -> list[str]:
             v = int(verses_str)
             result.append(f"{ch}:{v}")
     return result
+
+
+def get_related_hadith(ch: int, verse: int, num_results: int = 3) -> list[dict]:
+    """Get hadith related to the verse, if any.
+
+    Args:
+        ch (int): The chapter number.
+        verse (int): The verse number.
+        num_results (int, optional): The number of results to return. Defaults to 3.
+
+    Returns:
+        dict[str]: Hadith content along with hadith IDs. Content includes theme
+        and either english translation or original arabic of the Hadith.
+    """
+    # TODO: Refactor this into quranai.hadith
+    url = os.getenv("READ_QURAN_API_URL")
+    assert url is not None, "Cannot access Hadith database."
+    referenced_hadith_url = "/rq_ahadith?chapter={ch}&verse={verse}"
+    hadith_api_base_url = "https://api.readhadith.app"
+    lookup_hadith_url = "/ahadith/{slug}"
+
+    def _get_hadith(slug: str) -> dict:
+        hadith_query_url = hadith_api_base_url + lookup_hadith_url.format(slug=slug)
+        hadith_response = requests.get(hadith_query_url)
+        content = json.loads(hadith_response.content)["data"]
+        return content
+
+    def _prepare_hadith_for_display(hadith: dict) -> str:
+        formatted = f"Theme: {hadith["theme"]}\n\n" + (
+            f"English translation:\nf{hadith["english"]}"
+            if hadith["english"]
+            else f"Arabic: \n{hadith["arabic"]}"
+        )
+        return formatted
+
+    query_url = (url + referenced_hadith_url).format(ch=int(ch), verse=int(verse))
+    response = requests.get(query_url)
+    content = json.loads(response.content)
+    hadith_slugs = [h["slug"] for h in content["hadiths"]]
+    hadith_contents = gather_results_concurrently(
+        lambda slug: (slug, _prepare_hadith_for_display(_get_hadith(slug))),
+        hadith_slugs,
+    )
+    return [
+        {"hadith_id": slug, "content": content} for (slug, content) in hadith_contents
+    ]

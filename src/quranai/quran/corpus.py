@@ -18,7 +18,7 @@ from google.genai.errors import ClientError as GoogleClientError
 
 from quranai.utils import SingletonMeta, get_data_file_path, list_data_files
 
-url = "https://api.openquran.com"
+download_url = "https://api.openquran.com"
 intro_url = "/express/chapter/intro/{ch}"
 verses_url = "/express/chapter/{ch}:{start}-{end}"
 chapters = 114
@@ -59,13 +59,13 @@ def download_ch(n=1, start=1, end=300) -> dict:
     vdata = []
     for s in range(start, end, 10):
         res = requests.post(
-            (url + verses_url).format(ch=n, start=s, end=s + 10), json=payload
+            (download_url + verses_url).format(ch=n, start=s, end=s + 10), json=payload
         )
         data = json.loads(res.content)
         if data == {"message": "invalid request"}:
             break
         vdata.extend(data)
-    res = requests.get((url + intro_url).format(ch=n))
+    res = requests.get((download_url + intro_url).format(ch=n))
     intro_data = json.loads(res.content)
     return dict(**intro_data, verses=vdata)
 
