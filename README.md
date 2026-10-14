@@ -6,8 +6,6 @@ This repository hosts the **backend**:
 
 1. The core AI agent library (`src/quranai/`)
 2. An ADK API server
-3. (Planned) An MCP server
-4. (Planned) A CLI
 
 The **web UI** lives in a sibling project: [`../ask-quran-react/`](../ask-quran-react/) (Vite + React + MUI).
 

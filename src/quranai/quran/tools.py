@@ -46,11 +46,15 @@ dict:                      # mapping of topic to list of verse references in the
 ```
 """
 
+import json
+import os
 import re
 from typing import Optional
 
+import requests
+
 from quranai.quran.corpus import Corpus, sanitize_topic
-from quranai.utils import embed_chunks
+from quranai.utils import embed_chunks, gather_results_concurrently
 
 corpus = Corpus()
 
@@ -164,8 +168,57 @@ def get_topics_in_verse(ch: int, start: int, end: int) -> list[str]:
     return sorted(list(set([sanitize_topic(t["topic"]) for t in topics])))
 
 
-def get_related_hadith(ch: int, verse: int) -> str:
-    pass
+def get_related_hadith(ch: int, verse: int, num_results: int = 3) -> list[dict]:
+    """Get hadith related to the verse, if any.
+
+    Args:
+        ch: The chapter number (1-indexed).
+        verse: The verse number (1-indexed).
+        num_results: The number of results to return (default: 3).
+
+    Returns:
+        A list of hadith dictionaries with their ID, content, and metadata.
+    """
+    from quranai.hadith.tools import get_hadith_for_verse
+
+    local_results = get_hadith_for_verse(ch, verse, num_results=num_results)
+    if local_results:
+        return local_results
+
+    # Remote fallback if local corpus has no match for this verse
+    url = os.getenv("READ_QURAN_API_URL")
+    if not url:
+        return []
+
+    try:
+        query_url = f"{url}/rq_ahadith?chapter={int(ch)}&verse={int(verse)}"
+        response = requests.get(query_url, timeout=5)
+        content = json.loads(response.content)
+        hadith_slugs = [h["slug"] for h in content.get("hadiths", [])][:num_results]
+
+        def _get_remote_hadith(slug: str) -> dict:
+            hadith_query_url = f"https://api.readhadith.app/ahadith/{slug}"
+            res = requests.get(hadith_query_url, timeout=5)
+            data = json.loads(res.content).get("data", {})
+            return data
+
+        def _prepare_hadith_for_display(hadith: dict) -> str:
+            theme = hadith.get("theme", "")
+            english = hadith.get("english", "")
+            arabic = hadith.get("arabic", "")
+            return f"Theme: {theme}\n\n" + (
+                f"English translation:\n{english}" if english else f"Arabic:\n{arabic}"
+            )
+
+        hadith_contents = gather_results_concurrently(
+            lambda slug: (slug, _prepare_hadith_for_display(_get_remote_hadith(slug))),
+            hadith_slugs,
+        )
+        return [
+            {"id": slug, "content": content} for (slug, content) in hadith_contents
+        ]
+    except Exception:
+        return []
 
 
 def search_topics_semantically(query: str, num_results: int = 10) -> list[str]:

@@ -4,6 +4,7 @@ from google.adk.agents.llm_agent import Agent
 from google.adk.tools import agent_tool
 
 from quranai.quran import tools
+from quranai.hadith import tools as hadith_tools
 from quranai.agents.deepdive_agent import deepdive_agent
 
 logging.basicConfig(
@@ -40,6 +41,8 @@ root_agent = Agent(
           forms such as "1:2", "(1:2)", "Quran 1:2", or "Surah 1, verse 2"
           in place of the bracketed reference. For verse ranges, repeat the
           bracketed form, e.g. [2:1], [2:2], [2:3] (one bracket per verse).
+        - When citing a hadith, ALWAYS format the reference as [collection-number] in
+          square brackets, e.g. [bukhari-1] or [sahih-muslim-100].
     """,
     tools=[
         tools.get_chapter_intro,
@@ -49,6 +52,10 @@ root_agent = Agent(
         tools.search_verses_semantically,
         tools.search_topics_semantically,
         tools.get_verses_for_topic,
+        tools.get_related_hadith,
+        hadith_tools.get_hadith_by_id,
+        hadith_tools.search_hadith_semantically,
+        hadith_tools.get_linked_hadith,
         agent_tool.AgentTool(agent=deepdive_agent, skip_summarization=False),
     ],
     # sub_agents=[

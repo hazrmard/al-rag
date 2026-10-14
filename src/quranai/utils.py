@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import importlib.resources
 import pathlib
 from typing import Any, Iterator, Optional, TypedDict
@@ -338,3 +339,24 @@ def count_tokens(text: str) -> int:
     response = client.models.count_tokens(model="gemini-embedding-001", contents=text)
     assert response.total_tokens is not None
     return response.total_tokens
+
+
+def gather_results_concurrently(
+    func: Callable, args: list, max_workers: int = 5
+) -> list:
+    """Execute func over args concurrently and return list of results.
+
+    Args:
+        func (Callable): Function to run. Return value is concatenated.
+        args (list): List of args to pass to func.
+        max_workers (int, optional): Max number of threads. Defaults to 5.
+
+    Returns:
+        list: Result of each func(arg) invocation in a list.
+    """
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(func, arg) for arg in args]
+        results = []
+        for future in as_completed(futures):
+            results.append(future.result())
+    return results

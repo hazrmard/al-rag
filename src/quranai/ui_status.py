@@ -19,6 +19,11 @@ TOOL_STATUS_MESSAGES: dict[str, str] = {
     "search_verses_semantically": "Searching the Holy Quran",
     "search_topics_semantically": "Searching topics",
     "get_verses_for_topic": "Gathering verses for the topic",
+    "get_related_hadith": "Finding related Hadith",
+    "get_linked_hadith": "Finding related Hadith",
+    "get_hadith_by_id": "Retrieving Hadith",
+    "search_hadith_semantically": "Searching the Hadith corpus",
+    "get_hadith_for_verse": "Finding Hadith related to this verse",
     "deepdive_agent": "Performing a deep-dive analysis",
 }
 

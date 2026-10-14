@@ -1,34 +1,34 @@
 """Functions to process Hadith corpus.
 
-Schema from API:
+Schema from API (hadith.json):
 
-```
+```yaml
 data: list of dict:
-  collectionId: str     # name of the collection (bukhari etc.)
-  slug: str
-  printPageNum: str
-  pdfPageNum: int
-  id: str               # primary key (collectionId-hadithNumber)
-  hadithNumber: str
-  bookName: str
-  bookNameTr: str
-  bookSlug: str
-  bookNum: int
-  chapterNumber: int
-  chapterName: str
-  arabic: str
-  narratorIds: list of str
-  urduOriginal: str
-  urdu: str             # Actual urdu text of hadith
-  english: str          # Actual english text of hadith
-  tashrih: str
-  quranicReferences: str
-  linkedQuranicReferences: list of unknown
-  reference: str
-  hadithReference: str
-  theme: str            # Brief natural language summary of hadith.
-  linkedHadithIds: list of str      # list of hadithIds relevant to this one
-  nextHadithId: str
+  collectionId: str                 # Collection identifier (e.g. "bukhari", "sahih-muslim", "gardens-of-righteous", "hadiqatus-saliheen", "ibn-e-maja")
+  slug: str                         # URL slug for hadith (e.g. "bukhari-1")
+  printPageNum: str                 # Printed edition page number (e.g. "۲")
+  pdfPageNum: int                   # PDF page number in digital scan
+  id: str                           # Primary key, format "{collectionId}-{hadithNumber}" (e.g. "bukhari-1", "sahih-muslim-224")
+  hadithNumber: str                 # Hadith number within collection (e.g. "1", "4922")
+  bookName: str                     # Arabic book title (e.g. "كتاب بدء الوحى")
+  bookNameTr: str                   # Transliterated/translated book title (e.g. "Kitab Bad-il-Wahi")
+  bookSlug: str                     # URL slug for book (e.g. "kitab-bad-il-wahi")
+  bookNum: int                      # Sequential book index within collection (e.g. 1)
+  chapterNumber: int                # Sequential chapter index within book (e.g. 1)
+  chapterName: str                  # Chapter title in English/Urdu (e.g. "On Sincerity and the Importance of Motive...", empty string if none)
+  arabic: str                       # Full Arabic text, often with bracketed narrator names: "[الحميدي] حدثنا..."
+  narratorIds: list of str          # IDs of narrators in the transmission chain (isnad)
+  urduOriginal: str                 # Original Urdu translation text
+  urdu: str                         # Formatted Urdu translation of the hadith
+  english: str                      # English translation text (present for 2,486 records; empty string "" for 14,959 records)
+  tashrih: str                      # Extended commentary or explanation in Urdu
+  quranicReferences: str            # Comma-separated Quran verse references in "ch:verse" format (e.g. "96:2,96:3,96:4" or "3:65", empty string "" if none)
+  linkedQuranicReferences: list     # Structured Quranic references (empty list in current dataset)
+  reference: str                    # Traditional Urdu citation string (e.g. "صحیح البخاری, كتاب بدء الوحى, باب نمبر ۱...")
+  hadithReference: str              # Cross-reference citation string (e.g. "(بخاری کتاب الایمان  باب کیف کان بدء الوحی 1)")
+  theme: str                        # Natural language English summary/moral of the hadith (present for all 16,855 records)
+  linkedHadithIds: list of str      # Related/thematic parallel hadith IDs (e.g. ["bukhari-395", "bukhari-73", "sahih-muslim-3516"])
+  nextHadithId: str                 # ID of next sequential hadith (e.g. "bukhari-2")
 count: int
 pagination:
   page: int
@@ -36,9 +36,9 @@ pagination:
   totalPages: int
   total: int
 ```
-
 """
 
+from collections import defaultdict
 from typing import Generator, Literal
 import requests
 import json
@@ -124,6 +124,8 @@ class Corpus(metaclass=SingletonMeta):
 
     def __init__(self, mode: Literal["local", "remote"] = "local"):
         self.hadith = load_corpus_into_memory()
+        self.by_id: dict[str, dict] = {h["id"]: h for h in self.hadith}
+        self.by_verse: dict[str, list[str]] = self._build_verse_index()
         if mode == "local":
             self.vector_db = get_local_vector_db()
             self.hadith_collection = get_hadith_collection(self.vector_db)
@@ -131,6 +133,27 @@ class Corpus(metaclass=SingletonMeta):
             raise NotImplementedError("Remote mode is not implemented yet")
         else:
             raise ValueError("Invalid mode. Use 'local' or 'remote'.")
+
+    def _build_verse_index(self) -> dict[str, list[str]]:
+        """Build an inverted index mapping Quran verse references to Hadith IDs.
+
+        Parses the `quranicReferences` field on each hadith in the corpus. In
+        `hadith.json`, this field is stored as a comma-separated string of
+        references in "ch:verse" format (e.g. "96:2,96:3,96:4" or "3:65").
+
+        Returns:
+            dict[str, list[str]]: Mapping from "ch:verse" string key (e.g. "96:2")
+            to a list of hadith IDs (e.g. ["bukhari-3", "bukhari-4922", ...]).
+        """
+        index: dict[str, list[str]] = defaultdict(list)
+        for h in self.hadith:
+            refs = h.get("quranicReferences")
+            if refs:
+                for ref in refs.split(","):
+                    ref = ref.strip()
+                    if ref:
+                        index[ref].append(h["id"])
+        return dict(index)
 
 
 def chunks(
