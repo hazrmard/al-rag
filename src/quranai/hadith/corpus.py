@@ -91,13 +91,21 @@ def download_all_pages() -> list[dict]:
 def load_corpus_into_memory() -> list[dict]:
     """Load the entire Hadith corpus into memory."""
     path = get_data_file_path(corpus_json)
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"Corpus JSON file not found at {path}. Please run download_hadith.py in scripts/."
+        )
     with open(path, "r", encoding="utf-8") as f:
         corpus = json.load(f)
         return corpus
 
 
-def get_local_vector_db() -> ClientAPI:
+def get_local_vector_db(_allow_empty: bool = False) -> ClientAPI:
     path = get_data_file_path(vector_db)
+    if not _allow_empty and not (path.is_file() or path.is_dir()):
+        raise FileNotFoundError(
+            f"Vector database not found at {path}. Please run hadith indexing scripts in scripts/."
+        )
     client = chromadb.PersistentClient(path)
     return client
 
@@ -122,13 +130,15 @@ def _prepare_hadith_for_embedding(hadith: dict) -> str:
 class Corpus(metaclass=SingletonMeta):
     """This is a singleton class to hold the Hadith corpus in memory."""
 
-    def __init__(self, mode: Literal["local", "remote"] = "local"):
+    def __init__(self, mode: Literal["local", "remote"] = "local", _allow_empty: bool=False):
         self.hadith = load_corpus_into_memory()
         self.by_id: dict[str, dict] = {h["id"]: h for h in self.hadith}
         self.by_verse: dict[str, list[str]] = self._build_verse_index()
         if mode == "local":
-            self.vector_db = get_local_vector_db()
+            self.vector_db = get_local_vector_db(_allow_empty=_allow_empty)
             self.hadith_collection = get_hadith_collection(self.vector_db)
+            if not _allow_empty and self.hadith_collection.count() == 0:
+                raise ValueError("Vector database is empty. Please run hadith download/indexing scripts in quranai/scripts/.")
         elif mode == "remote":
             raise NotImplementedError("Remote mode is not implemented yet")
         else:
@@ -179,7 +189,7 @@ def _build_hadith_index(max_tokens_per_request=max_chunk_length, update_only=Fal
     2. Generate metadata for each chunk (topics, cross-references etc.)
     3. Generate embeddings for each chunk.
     4. Store the chunks and their embeddings in a vector database."""
-    corpus = Corpus()
+    corpus = Corpus(_allow_empty=True)
     collection = corpus.hadith_collection
     ids, chunks_, metadata = zip(*chunks(corpus))
     tokens_in_batch = 0

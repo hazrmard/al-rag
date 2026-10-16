@@ -90,6 +90,10 @@ payload = {
 def load_corpus_into_memory() -> list[dict]:
     """Load the entire Quran corpus into memory."""
     path = get_data_file_path(corpus_json)
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"Corpus JSON file not found at {path}. Please run download_quran.py in scripts/."
+        )
     with open(path, "r", encoding="utf-8") as f:
         corpus = json.load(f)
         return list(corpus.values())
@@ -114,8 +118,12 @@ def download_all_chapters(start=1, end=chapters + 1) -> list[dict]:
     return [download_ch(n, 1, 300) for n in range(start, end)]
 
 
-def get_local_vector_db() -> ClientAPI:
+def get_local_vector_db(_allow_empty: bool = False) -> ClientAPI:
     path = get_data_file_path(vector_db)
+    if not _allow_empty and not (path.is_file() or path.is_dir()):
+        raise FileNotFoundError(
+            f"Vector database not found at {path}. Please run quran indexing scripts in scripts/."
+        )
     client = chromadb.PersistentClient(path)
     return client
 
@@ -203,16 +211,28 @@ def get_topics(q: list[dict]) -> tuple[list[str], dict[str, list[str]]]:
 class Corpus(metaclass=SingletonMeta):
     """This is a singleton class to hold the Quran corpus in memory."""
 
-    def __init__(self, mode: Literal["local", "remote"] = "local"):
+    def __init__(
+        self,
+        mode: Literal["local", "remote"] = "local",
+        _allow_empty: bool = False,
+    ):
         self.quran = load_corpus_into_memory()
         self.topics, self.references = get_topics(self.quran)
         if mode == "local":
-            self.vector_db = get_local_vector_db()
+            self.vector_db = get_local_vector_db(_allow_empty=_allow_empty)
             self.verses_collection = get_verses_collection(self.vector_db)
             self.topics_collection = get_topics_collection(self.vector_db)
             self.chapter_intros_collection = get_chapter_intros_collection(
                 self.vector_db
             )
+            if not _allow_empty and (
+                self.verses_collection.count() == 0
+                or self.topics_collection.count() == 0
+                or self.chapter_intros_collection.count() == 0
+            ):
+                raise ValueError(
+                    "Vector database is empty. Please run quran download/indexing scripts in quranai/scripts/."
+                )
         elif mode == "remote":
             raise NotImplementedError("Remote mode is not implemented yet")
         else:
@@ -283,7 +303,7 @@ def _build_verse_index(batches_per_request=20):
     2. Generate metadata for each chunk (topics, cross-references etc.)
     3. Generate embeddings for each chunk.
     4. Store the chunks and their embeddings in a vector database."""
-    corpus = Corpus()
+    corpus = Corpus(_allow_empty=True)
     ids, chunks_, metadata = zip(*chunks(corpus, chunk_size=10, overlap=2))
     start = datetime.now()
     for i in trange(0, len(chunks_), batches_per_request, leave=False):
@@ -311,7 +331,8 @@ def _build_topic_index(batches_per_request=100):
     1. Generate topics from the corpus.
     2. Generate embeddings for each topic.
     3. Store the topics and their embeddings in a vector database."""
-    topics = Corpus().topics
+    corpus = Corpus(_allow_empty=True)
+    topics = corpus.topics
     start = datetime.now()
     for i in trange(0, len(topics), batches_per_request, leave=False):
         batch_topics = list(topics[i : i + batches_per_request])
@@ -324,13 +345,13 @@ def _build_topic_index(batches_per_request=100):
             time.sleep(delay)  # wait for the minute to pass
             start = datetime.now()
             embeddings = embed_chunks(batch_topics)
-        collection = Corpus().topics_collection
+        collection = corpus.topics_collection
         collection.upsert(embeddings=embeddings, ids=batch_ids)
 
 
 def _build_chapter_intro_index():
     """This function builds an index of chapter introductions in the corpus."""
-    corpus = Corpus()
+    corpus = Corpus(_allow_empty=True)
     batches_per_request = 5
 
     def _chunks():
