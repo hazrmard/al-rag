@@ -82,6 +82,30 @@ def test_root_agent_has_hadith_tools():
     assert "get_hadith_by_id" in tool_names
     assert "search_hadith_semantically" in tool_names
     assert "get_related_hadith" in tool_names
+    assert "When citing a hadith" in root_agent.instruction
+
+
+def test_root_agent_hadith_tools_disabled(monkeypatch):
+    import importlib
+    from quranai.agents.agent import agent as agent_module
+
+    monkeypatch.setenv("ENABLE_HADITH_TOOLS", "false")
+    importlib.reload(agent_module)
+    try:
+        tool_names = []
+        for t in agent_module.root_agent.tools:
+            if hasattr(t, "name"):
+                tool_names.append(t.name)
+            elif hasattr(t, "__name__"):
+                tool_names.append(t.__name__)
+
+        assert "get_hadith_by_id" not in tool_names
+        assert "search_hadith_semantically" not in tool_names
+        assert "get_related_hadith" not in tool_names
+        assert "When citing a hadith" not in agent_module.root_agent.instruction
+    finally:
+        monkeypatch.delenv("ENABLE_HADITH_TOOLS", raising=False)
+        importlib.reload(agent_module)
 
 
 def test_ui_status_hadith_tools():

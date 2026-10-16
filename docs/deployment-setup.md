@@ -35,7 +35,7 @@ deployed separately; it is **not** managed by these scripts.
 | `nginx/README.md`                        | Steps to install the nginx config on the server.                       |
 | `Dockerfile`                             | Adds a default `CMD` so `docker run` (no compose) starts the API.      |
 | `docker-compose.yaml`                    | Dev/prod profiles, default port now `7990`.                            |
-| `.env-TEMPLATE` / `.env`                 | `QURANAI_API_PORT` defaults to `7990`.                                 |
+| `.env-TEMPLATE` / `.env`                 | `QURANAI_API_PORT` (7990), `ENABLE_HADITH_TOOLS` (1). |
 
 ## First-time deploy
 

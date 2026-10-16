@@ -5,7 +5,21 @@ from typing import Optional
 from quranai.hadith.corpus import Corpus
 from quranai.utils import embed_chunks
 
-corpus = Corpus()
+_corpus: Optional[Corpus] = None
+
+
+def _get_corpus() -> Corpus:
+    """Return the singleton Corpus instance, lazily initializing if needed."""
+    global _corpus
+    if _corpus is None:
+        _corpus = Corpus()
+    return _corpus
+
+
+def __getattr__(name: str):
+    if name == "corpus":
+        return _get_corpus()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _format_hadith(hadith: dict) -> dict:
@@ -64,7 +78,7 @@ def get_hadith_by_id(id: str) -> dict:
         and cross-references. Returns an error message if not found.
     """
     clean_id = id.strip().strip("[]").lower()
-    hadith = corpus.by_id.get(clean_id)
+    hadith = _get_corpus().by_id.get(clean_id)
     if not hadith:
         return {"error": f"Hadith '{id}' not found in the corpus."}
     return _format_hadith(hadith)
@@ -85,7 +99,7 @@ def search_hadith_semantically(query: str, num_results: int = 5) -> list[dict]:
         and distance score.
     """
     query_embedding = embed_chunks([query], mode="RETRIEVAL_QUERY")[0]
-    results = corpus.hadith_collection.query(
+    results = _get_corpus().hadith_collection.query(
         query_embeddings=[query_embedding],
         n_results=num_results,
     )
@@ -94,7 +108,7 @@ def search_hadith_semantically(query: str, num_results: int = 5) -> list[dict]:
 
     matches = []
     for hadith_id, dist in zip(ids, distances):
-        raw = corpus.by_id.get(hadith_id)
+        raw = _get_corpus().by_id.get(hadith_id)
         if raw:
             card = _format_hadith(raw)
             card["distance"] = round(dist, 4)
@@ -113,13 +127,13 @@ def get_linked_hadith(id: str, num_results: int = 3) -> list[dict]:
         A list of related hadith dictionaries.
     """
     clean_id = id.strip().strip("[]").lower()
-    hadith = corpus.by_id.get(clean_id)
+    hadith = _get_corpus().by_id.get(clean_id)
     if not hadith:
         return [{"error": f"Hadith '{id}' not found in the corpus."}]
     linked_ids = hadith.get("linkedHadithIds", [])[:num_results]
     results = []
     for lid in linked_ids:
-        raw = corpus.by_id.get(lid)
+        raw = _get_corpus().by_id.get(lid)
         if raw:
             results.append(_format_hadith(raw))
         else:
@@ -142,7 +156,7 @@ def get_hadith_for_verse(ch: int, verse: int, num_results: int = 5) -> list[dict
         A list of hadith dictionaries citing or associated with the specified verse.
     """
     verse_key = f"{int(ch)}:{int(verse)}"
-    hadith_ids = corpus.by_verse.get(verse_key, [])
+    hadith_ids = _get_corpus().by_verse.get(verse_key, [])
     seen = set()
     unique_ids = []
     for hid in hadith_ids:
@@ -151,7 +165,7 @@ def get_hadith_for_verse(ch: int, verse: int, num_results: int = 5) -> list[dict
             unique_ids.append(hid)
     results = []
     for hid in unique_ids[:num_results]:
-        raw = corpus.by_id.get(hid)
+        raw = _get_corpus().by_id.get(hid)
         if raw:
             results.append(_format_hadith(raw))
     return results

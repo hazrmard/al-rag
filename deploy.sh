@@ -89,6 +89,7 @@ if [ ! -f ~/ask-quran-adk/.env ]; then
 GOOGLE_GENAI_USE_VERTEXAI=0
 GOOGLE_API_KEY=
 QURANAI_API_PORT=7990
+ENABLE_HADITH_TOOLS=1
 EOF
 fi
 

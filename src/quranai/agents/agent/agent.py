@@ -1,10 +1,10 @@
+import os
 import logging
 
 from google.adk.agents.llm_agent import Agent
 from google.adk.tools import agent_tool
 
 from quranai.quran import tools
-from quranai.hadith import tools as hadith_tools
 from quranai.agents.deepdive_agent import deepdive_agent
 
 logging.basicConfig(
@@ -13,12 +13,11 @@ logging.basicConfig(
 
 MODEL_NAME = "gemini-3-flash-preview"
 
-# Root coordinator agent. It delegates deep-dive queries to the `DeepDive` sub-agent.
-root_agent = Agent(
-    model=MODEL_NAME,
-    name="root_agent",
-    description="A helpful assistant for user questions about the Quran.",
-    instruction="""
+ENABLE_HADITH_TOOLS = (
+    os.getenv("ENABLE_HADITH_TOOLS", "true").lower() in ("1", "true", "yes")
+)
+
+agent_instruction = """
         You are a factual, scholarly assistant for the Quran. Your role is to help
         users research and answer questions from the corpus.
 
@@ -41,23 +40,42 @@ root_agent = Agent(
           forms such as "1:2", "(1:2)", "Quran 1:2", or "Surah 1, verse 2"
           in place of the bracketed reference. For verse ranges, repeat the
           bracketed form, e.g. [2:1], [2:2], [2:3] (one bracket per verse).
-        - When citing a hadith, ALWAYS format the reference as [collection-number] in
+"""
+
+if ENABLE_HADITH_TOOLS:
+    agent_instruction += """        - When citing a hadith, ALWAYS format the reference as [collection-number] in
           square brackets, e.g. [bukhari-1] or [sahih-muslim-100].
-    """,
-    tools=[
-        tools.get_chapter_intro,
-        tools.search_chapter_intros_semantically,
-        tools.get_verses,
-        tools.get_verse_footnotes,
-        tools.search_verses_semantically,
-        tools.search_topics_semantically,
-        tools.get_verses_for_topic,
+"""
+
+agent_tools = [
+    tools.get_chapter_intro,
+    tools.search_chapter_intros_semantically,
+    tools.get_verses,
+    tools.get_verse_footnotes,
+    tools.search_verses_semantically,
+    tools.search_topics_semantically,
+    tools.get_verses_for_topic,
+]
+
+if ENABLE_HADITH_TOOLS:
+    from quranai.hadith import tools as hadith_tools
+
+    agent_tools.extend([
         tools.get_related_hadith,
         hadith_tools.get_hadith_by_id,
         hadith_tools.search_hadith_semantically,
         hadith_tools.get_linked_hadith,
-        agent_tool.AgentTool(agent=deepdive_agent, skip_summarization=False),
-    ],
+    ])
+
+agent_tools.append(agent_tool.AgentTool(agent=deepdive_agent, skip_summarization=False))
+
+# Root coordinator agent. It delegates deep-dive queries to the `DeepDive` sub-agent.
+root_agent = Agent(
+    model=MODEL_NAME,
+    name="root_agent",
+    description="A helpful assistant for user questions about the Quran.",
+    instruction=agent_instruction,
+    tools=agent_tools,
     # sub_agents=[
     #     planner_agent
     # ],

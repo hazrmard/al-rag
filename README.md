@@ -19,6 +19,15 @@ uv sync
 
 Copy `.env-TEMPLATE` to `.env` and fill in `GOOGLE_API_KEY`.
 
+### Environment Variables
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `GOOGLE_API_KEY` | *(required)* | Gemini API key for ADK agent reasoning and embeddings. |
+| `QURANAI_API_PORT` | `7990` | Port for the ADK API server. |
+| `ENABLE_HADITH_TOOLS` | `true` | Enable Hadith retrieval and cross-referencing tools in the agent (`1`/`true`/`yes`). Set to `0` or `false` to disable. |
+| `READ_QURAN_API_URL` | `https://api.readquran.app` | Base URL for remote Quran/Hadith API fallback. |
+
 ## Development & Testing
 
 To run the debug ADK web interface (development convenience):

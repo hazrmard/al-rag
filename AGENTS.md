@@ -42,3 +42,4 @@ The agent can run in a cli. See https://google.github.io/adk-docs/runtime/comman
 
 ## TODOs
 
+- [x] Add `ENABLE_HADITH_TOOLS` environment variable (default: true) to conditionally wire Hadith tools and citation prompt instructions into `root_agent`.
