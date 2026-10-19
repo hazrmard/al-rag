@@ -186,7 +186,7 @@ def get_related_hadith(ch: int, verse: int, num_results: int = 3) -> list[dict]:
         return local_results
 
     # Remote fallback if local corpus has no match for this verse
-    url = os.getenv("READ_QURAN_API_URL")
+    url = os.getenv("READ_QURAN_API_URL", "https://api.readquran.app")
     if not url:
         return []
 

@@ -39,6 +39,7 @@ verses: list of dict:
 ```
 """
 
+import os
 import json
 import time
 from datetime import datetime
@@ -59,9 +60,10 @@ from quranai.utils import (
     CustomEmbeddingFunction,
 )
 
-url = "https://api.openquran.com"
-intro_url = "/express/chapter/intro/{ch}"
-verses_url = "/express/chapter/{ch}:{start}-{end}"
+QURAN_API_BASE = os.getenv("READ_QURAN_API_URL", "https://api.readquran.app")
+url = QURAN_API_BASE
+intro_url = "/chapter/intro/{ch}"
+verses_url = "/chapter/{ch}:{start}-{end}"
 chapters = 114
 corpus_json = "quran.json"
 vector_db = "quranai.chroma"
