@@ -27,6 +27,9 @@ Copy `.env-TEMPLATE` to `.env` and fill in `GOOGLE_API_KEY`.
 | `QURANAI_API_PORT` | `7990` | Port for the ADK API server. |
 | `ENABLE_HADITH_TOOLS` | `true` | Enable Hadith retrieval and cross-referencing tools in the agent (`1`/`true`/`yes`). Set to `0` or `false` to disable. |
 | `READ_QURAN_API_URL` | `https://api.readquran.app` | Base URL for the Quran API (corpus chapter extraction and online Hadith cross-reference fallback). |
+| `QURANAI_DATA_DIR` | `src/quranai/data` | Directory where corpus JSON files (`quran.json`, `hadith.json`) and ChromaDB (`quranai.chroma`) are read and written. |
+| `QURANAI_DATA_HOST_DIR` | `./src/quranai/data` | Host directory baked into Docker images via `docker compose` or `deploy.sh`. |
+| `QURANAI_CONTAINER_DATA_DIR` | `/app/data` | Target corpus path inside the Docker container (kept separate from `/data`, which stores ADK `sessions.db`). |
 
 ## Development & Testing
 
@@ -84,6 +87,23 @@ docker compose --profile prod up --build -d
 ```
 
 4. **Access**: API server at `http://localhost:7999` (or whatever `QURANAI_API_PORT` is set to).
+
+#### Building with an external corpus directory
+
+To bake corpora stored outside the git repository into the Docker image:
+
+```bash
+# Direct docker build (BuildKit)
+docker build --build-context data=/path/to/corpora -t ask-quran-adk:latest .
+
+# docker compose
+QURANAI_DATA_HOST_DIR=/path/to/corpora docker compose --profile dev up --build
+
+# Production deploy script
+./deploy.sh --data-dir /path/to/corpora
+```
+
+Inside the container, `QURANAI_DATA_DIR` defaults to `/app/data` (configurable at build time via `--build-arg QURANAI_DATA_DIR=...` or overridden at runtime with `-v /host/corpora:/opt/corpora -e QURANAI_DATA_DIR=/opt/corpora`).
 
 ## Web UI
 

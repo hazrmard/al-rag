@@ -19,6 +19,7 @@ the BE runs as 5 docker instances behind nginx, with domain-based routing.
 | Container internal port   | `7990` (matches dev port)                          |
 | Dev port (docker-compose) | `7990`                                             |
 | Session storage           | Shared docker named volume `ask-quran-adk-sessions` mounted at `/data`; one SQLite file (`/data/sessions.db`) across all replicas |
+| Corpus data path          | `/app/data` (`QURANAI_DATA_DIR` env/build arg); baked from `src/quranai/data` by default or an external host dir via `--build-context data=...` / `./deploy.sh --data-dir ...` |
 | Health endpoint           | `/health` (provided by ADK out of the box)         |
 | Version endpoint          | `/version` (provided by ADK)                       |
 

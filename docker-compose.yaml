@@ -3,8 +3,14 @@ services:
     profiles: ["dev"]
     build:
       context: .
+      additional_contexts:
+        data: ${QURANAI_DATA_HOST_DIR:-./src/quranai/data}
+      args:
+        QURANAI_DATA_DIR: ${QURANAI_CONTAINER_DATA_DIR:-/app/data}
     env_file:
       - .env
+    environment:
+      - QURANAI_DATA_DIR=${QURANAI_CONTAINER_DATA_DIR:-/app/data}
     ports:
       - "${QURANAI_API_PORT:-7990}:${QURANAI_API_PORT:-7990}"
     command: >
@@ -15,8 +21,14 @@ services:
     profiles: ["prod"]
     build:
       context: .
+      additional_contexts:
+        data: ${QURANAI_DATA_HOST_DIR:-./src/quranai/data}
+      args:
+        QURANAI_DATA_DIR: ${QURANAI_CONTAINER_DATA_DIR:-/app/data}
     env_file:
       - .env
+    environment:
+      - QURANAI_DATA_DIR=${QURANAI_CONTAINER_DATA_DIR:-/app/data}
     ports:
       - "${QURANAI_API_PORT:-7990}:${QURANAI_API_PORT:-7990}"
     command: >

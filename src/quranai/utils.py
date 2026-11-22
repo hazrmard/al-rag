@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import importlib.resources
+import os
 import pathlib
 from typing import Any, Iterator, Optional, TypedDict
 import inspect
@@ -9,27 +9,87 @@ from chromadb import Documents, EmbeddingFunction, Embeddings
 from chromadb.utils.embedding_functions import register_embedding_function
 import numpy as np
 
+DATA_DIR_ENV_VAR = "QURANAI_DATA_DIR"
+DEFAULT_DATA_DIR = pathlib.Path(__file__).resolve().parent / "data"
 
-def list_data_files():
-    """List all files in the quranai/data directory."""
+
+def get_data_dir(ensure_exists: bool = False) -> pathlib.Path:
+    """Resolve the directory used to read and store corpus data files.
+
+    Uses the ``QURANAI_DATA_DIR`` environment variable when set and non-empty.
+    Otherwise falls back to the packaged ``src/quranai/data`` directory.
+
+    Parameters
+    ----------
+    ensure_exists : bool, optional
+        If True, create the directory (including parent directories) if it does
+        not already exist. Defaults to False.
+
+    Returns
+    -------
+    pathlib.Path
+        Resolved path to the data directory.
+    """
+    env_dir = os.getenv(DATA_DIR_ENV_VAR, "").strip()
+    data_dir = (
+        pathlib.Path(env_dir).expanduser() if env_dir else DEFAULT_DATA_DIR
+    )
+
+    if ensure_exists:
+        data_dir.mkdir(parents=True, exist_ok=True)
+    return data_dir
+
+
+def list_data_files() -> list[str]:
+    """List all files in the configured data directory.
+
+    Returns
+    -------
+    list[str]
+        Filenames of regular files in the data directory, or an empty list if
+        the directory does not exist.
+    """
     try:
-        files = []
-        for item in importlib.resources.files("quranai.data").iterdir():
-            if item.is_file():
-                files.append(item.name)
-        return files
+        return [item.name for item in get_data_dir().iterdir() if item.is_file()]
     except FileNotFoundError:
         return []
 
 
-def get_data_file_path(filename) -> pathlib.Path:
-    """Get the Traversable path to a data file."""
-    return importlib.resources.files("quranai.data") / filename
+def get_data_file_path(
+    filename: str | pathlib.Path, ensure_dir: bool = False
+) -> pathlib.Path:
+    """Return the path to a file or subdirectory inside the data directory.
+
+    Parameters
+    ----------
+    filename : str or pathlib.Path
+        Relative name of the file or subdirectory within the data directory.
+    ensure_dir : bool, optional
+        If True, create the data directory if it does not already exist.
+        Defaults to False.
+
+    Returns
+    -------
+    pathlib.Path
+        Full path to the target data file or subdirectory.
+    """
+    return get_data_dir(ensure_exists=ensure_dir) / filename
 
 
-def read_data_file(filename) -> str:
-    """Read the content of a data file as text."""
-    return importlib.resources.read_text("quranai.data", filename)
+def read_data_file(filename: str | pathlib.Path) -> str:
+    """Read the content of a data file as UTF-8 text.
+
+    Parameters
+    ----------
+    filename : str or pathlib.Path
+        Relative name of the file within the data directory.
+
+    Returns
+    -------
+    str
+        Text contents of the data file.
+    """
+    return get_data_file_path(filename).read_text(encoding="utf-8")
 
 
 def schema(d: dict | list) -> str:

@@ -101,7 +101,7 @@ def load_corpus_into_memory() -> list[dict]:
 
 
 def get_local_vector_db(_allow_empty: bool = False) -> ClientAPI:
-    path = get_data_file_path(vector_db)
+    path = get_data_file_path(vector_db, ensure_dir=_allow_empty)
     if not _allow_empty and not (path.is_file() or path.is_dir()):
         raise FileNotFoundError(
             f"Vector database not found at {path}. Please run hadith indexing scripts in scripts/."

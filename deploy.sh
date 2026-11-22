@@ -2,9 +2,31 @@
 
 # Deployment script for ask-quran-adk (Python / google-adk backend)
 # Builds Docker image locally and pushes to server
-# Usage: ./deploy.sh
+# Usage: ./deploy.sh [--data-dir /path/to/corpora]
+#   Or set QURANAI_DATA_HOST_DIR=/path/to/corpora in the environment.
 
 set -e
+
+DATA_HOST_DIR="${QURANAI_DATA_HOST_DIR:-}"
+CONTAINER_DATA_DIR="${QURANAI_CONTAINER_DATA_DIR:-}"
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --data-dir)
+            DATA_HOST_DIR="$2"
+            shift 2
+            ;;
+        --container-data-dir)
+            CONTAINER_DATA_DIR="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--data-dir /path/to/corpora] [--container-data-dir /app/data]"
+            exit 1
+            ;;
+    esac
+done
 
 SERVER_USER="almalinux"
 SERVER_HOST="148.113.226.32"
@@ -21,8 +43,17 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # Step 1: Build Docker image locally for linux/amd64 platform
+BUILD_ARGS=()
+if [ -n "${DATA_HOST_DIR}" ]; then
+    echo -e "${YELLOW}📂 Using external corpus data directory: ${DATA_HOST_DIR}${NC}"
+    BUILD_ARGS+=(--build-context "data=${DATA_HOST_DIR}")
+fi
+if [ -n "${CONTAINER_DATA_DIR}" ]; then
+    BUILD_ARGS+=(--build-arg "QURANAI_DATA_DIR=${CONTAINER_DATA_DIR}")
+fi
+
 echo -e "${YELLOW}🔨 Building Docker image locally for linux/amd64...${NC}"
-docker build --platform linux/amd64 -t ${IMAGE_NAME} .
+docker build --platform linux/amd64 "${BUILD_ARGS[@]}" -t ${IMAGE_NAME} .
 
 # Step 2: Save image to tar file
 echo -e "${YELLOW}💾 Saving Docker image...${NC}"

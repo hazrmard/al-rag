@@ -43,3 +43,4 @@ The agent can run in a cli. See https://google.github.io/adk-docs/runtime/comman
 ## TODOs
 
 - [x] Add `ENABLE_HADITH_TOOLS` environment variable (default: true) to conditionally wire Hadith tools and citation prompt instructions into `root_agent`.
+- [x] Parametrize corpus data directory via `QURANAI_DATA_DIR` (defaulting to `src/quranai/data`) and expose Docker build-level parametrization (`--build-context data=...`, `ARG QURANAI_DATA_DIR`).
